@@ -74,9 +74,18 @@ jobs:
           retention-days: 30
       - name: Publish to GitHub Releases (release events only)
         if: github.event_name == 'release'
-        run: npx electron-builder --config electron-builder.yml --win --publish always
+        shell: pwsh
+        run: |
+          npx electron-builder --config electron-builder.yml --win --publish always 2>&1 | Tee-Object -FilePath publish.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-publish-log
+          path: publish.log
+          retention-days: 7
 
   build-linux:
     name: Build Linux AppImage (smoke)
