@@ -97,6 +97,16 @@ export function suggestedQuantityOf(riskUsd: number, entryPrice: number, stopLos
   return riskUsd / dist;
 }
 
+/** Per-trade risk % falls back to the account default when unset. */
+export function effectiveRiskPercent(riskPercent: number | null, defaultPercent: number): number {
+  return riskPercent != null && riskPercent > 0 ? riskPercent : defaultPercent;
+}
+
+/** Dollar risk for a given % of the account balance. */
+export function riskUsdFromPercent(balance: number, percent: number): number {
+  return (balance * percent) / 100;
+}
+
 export function durationMinutesOf(
   entryDate: string,
   entryTime: string,

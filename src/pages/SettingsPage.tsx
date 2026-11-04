@@ -92,6 +92,15 @@ export default function SettingsPage() {
                 <option value="light">روشن (Light)</option>
               </select>
             </Field>
+            <Field label="فرمت ذخیره اسکرین‌شات‌ها" hint="webp حجم بسیار کمتری دارد (معمولاً ۵ تا ۱۰ برابر کوچک‌تر از PNG)">
+              <select className="input" value={settings.imageFormat} onChange={(e) => setSettings({ ...settings, imageFormat: e.target.value as Settings["imageFormat"] })} data-testid="set-image-format">
+                <option value="original">فرمت اصلی فایل (PNG/JPG…)</option>
+                <option value="webp">WebP (کم‌حجم)</option>
+              </select>
+            </Field>
+            <Field label="کیفیت WebP (0 تا 1)" hint="0.8 یعنی ۸۰٪ — تعادل خوب بین کیفیت و حجم">
+              <input type="number" step="0.05" min={0.1} max={1} className="input mono" value={settings.webpQuality} onChange={(e) => setSettings({ ...settings, webpQuality: Number(e.target.value) || 0.8 })} data-testid="set-webp-quality" />
+            </Field>
           </div>
         </Section>
 

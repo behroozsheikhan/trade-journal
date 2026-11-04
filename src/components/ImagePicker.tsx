@@ -45,6 +45,43 @@ export function ImageGallery({ refs, testId }: { refs: ImageRef[]; testId?: stri
   );
 }
 
+/**
+ * Convert an image file to WebP using the renderer's Chromium canvas
+ * (no native dependency needed). Falls back to the original bytes on any
+ * failure (e.g. SVG, or canvas unsupported).
+ */
+async function fileToStoredBytes(
+  file: File,
+  imageFormat: "original" | "webp",
+  quality: number,
+): Promise<{ name: string; data: Uint8Array }> {
+  const rasterizable = /^image\/(png|jpe?g|webp|bmp|gif)$/.test(file.type);
+  if (imageFormat === "webp" && rasterizable) {
+    try {
+      const bmp = await createImageBitmap(file);
+      const canvas = document.createElement("canvas");
+      canvas.width = bmp.width;
+      canvas.height = bmp.height;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(bmp, 0, 0);
+        bmp.close();
+        const blob = await new Promise<Blob | null>((res) =>
+          canvas.toBlob((b) => res(b), "image/webp", quality),
+        );
+        if (blob && blob.size > 0) {
+          const buf = new Uint8Array(await blob.arrayBuffer());
+          const name = file.name.replace(/\.[^.]+$/, "") + ".webp";
+          return { name, data: buf };
+        }
+      }
+    } catch {
+      /* fall through to original bytes */
+    }
+  }
+  return { name: file.name, data: new Uint8Array(await file.arrayBuffer()) };
+}
+
 export function ImagePicker({
   tradeId,
   value,
@@ -59,21 +96,27 @@ export function ImagePicker({
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [settings, setSettings] = useState<{ imageFormat: "original" | "webp"; webpQuality: number } | null>(null);
   const urls = useImageUrls(value);
+
+  useEffect(() => {
+    void getApi().getSettings().then((s) => setSettings({ imageFormat: s.imageFormat, webpQuality: s.webpQuality }));
+  }, []);
 
   const addFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setBusy(true);
     try {
       const api = getApi();
+      const s = settings ?? (await api.getSettings());
       const added: ImageRef[] = [];
       for (const f of Array.from(files)) {
-        const buf = await f.arrayBuffer();
-        const ref = await api.saveImage(tradeId, f.name, new Uint8Array(buf));
+        const { name, data } = await fileToStoredBytes(f, s.imageFormat, s.webpQuality);
+        const ref = await api.saveImage(tradeId, name, data);
         added.push(ref);
       }
       onChange([...value, ...added]);
-      toast(`${added.length} تصویر اضافه شد`);
+      toast(`${added.length} تصویر اضافه شد${s.imageFormat === "webp" ? " (WebP)" : ""}`);
     } catch (e) {
       toast(`خطا در ذخیره تصویر: ${(e as Error).message}`, "err");
     } finally {

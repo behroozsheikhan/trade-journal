@@ -225,7 +225,8 @@ export async function seedDemoTrades(api: JournalAPI, n = 24): Promise<void> {
     const stopLoss = direction === "long" ? entry - slDist : entry + slDist;
     const plannedRR = 1.5 + rnd() * 2;
     const tp1 = direction === "long" ? entry + slDist * plannedRR : entry - slDist * plannedRR;
-    const qty = (settings.accountBalance * 0.02) / slDist; // ~2% risk per trade
+    const riskPercent = Math.round((0.5 + rnd() * 1.5) * 10) / 10; // 0.5%..2% per trade
+    const qty = (settings.accountBalance * riskPercent) / 100 / slDist;
     const rTarget = rnd() > 0.45 ? 1 + rnd() * 2 : -(0.6 + rnd() * 0.4); // ~55% win rate
     const exit = direction === "long" ? entry + rTarget * slDist : entry - rTarget * slDist;
     const fees = entry * qty * 0.001;
@@ -258,6 +259,7 @@ export async function seedDemoTrades(api: JournalAPI, n = 24): Promise<void> {
       takeProfit1: round(tp1),
       takeProfit2: round(direction === "long" ? entry + slDist * plannedRR * 1.6 : entry - slDist * plannedRR * 1.6),
       quantity: round6(qty),
+      riskPercent,
       fees: round(fees),
       funding: rnd() > 0.5 ? round(fees * 0.2) : 0,
       setup: DEMO_SETUPS[Math.floor(rnd() * DEMO_SETUPS.length)],
@@ -304,6 +306,7 @@ export async function seedDemoTrades(api: JournalAPI, n = 24): Promise<void> {
       takeProfit1: round(i === 0 ? entry * 1.03 : entry * 0.97),
       takeProfit2: null,
       quantity: 0.05,
+      riskPercent: 1,
       fees: 1.2,
       funding: 0,
       setup: "breakout",

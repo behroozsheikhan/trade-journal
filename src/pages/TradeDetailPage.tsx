@@ -123,6 +123,7 @@ export default function TradeDetailPage() {
           <Row label="استاپ لاس">{trade.stopLoss != null ? fmtNum(trade.stopLoss, 8) : "—"}</Row>
           <Row label="حد سود ۱ / ۲">{[trade.takeProfit1, trade.takeProfit2].filter(Boolean).map((v) => fmtNum(v as number, 8)).join(" / ") || "—"}</Row>
           <Row label="حجم">{fmtNum(trade.quantity, 8)}</Row>
+          <Row label="ریسک planned این معامله">{trade.riskPercent != null ? `${trade.riskPercent}%` : `پیش‌فرض حساب (${settings.defaultRiskPercent}%)`}</Row>
           <Row label="Notional">{fmtMoney(d.notional, settings.baseCurrency)}</Row>
           <Row label="هزینه‌ها / فاندینگ">{fmtMoney(trade.fees, settings.baseCurrency)} / {fmtMoney(trade.funding, settings.baseCurrency)}</Row>
         </Section>

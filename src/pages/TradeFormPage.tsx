@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { deriveTrade, liquidationPriceOf, riskUsdOf, suggestedQuantityOf } from "../../shared/calc";
+import { deriveTrade, effectiveRiskPercent, riskUsdFromPercent, suggestedQuantityOf } from "../../shared/calc";
 import {
   EMOTIONS,
   EXIT_REASONS,
@@ -66,6 +66,7 @@ function emptyInput(): TradeInput {
     takeProfit1: null,
     takeProfit2: null,
     quantity: 0,
+    riskPercent: null,
     fees: 0,
     funding: 0,
     setup: "",
@@ -180,7 +181,8 @@ export default function TradeFormPage() {
 
   const suggestQty = () => {
     if (!input || !settings) return;
-    const risk = (settings.accountBalance * settings.defaultRiskPercent) / 100;
+    const pct = effectiveRiskPercent(input.riskPercent, settings.defaultRiskPercent);
+    const risk = riskUsdFromPercent(settings.accountBalance, pct);
     const q = suggestedQuantityOf(risk, input.entryPrice, input.stopLoss);
     if (q != null) set("quantity", Math.round(q * 1e6) / 1e6);
   };
@@ -305,6 +307,36 @@ export default function TradeFormPage() {
                   </button>
                 </div>
               </Field>
+              <Field label="ریسک این معامله (% از موجودی)" hint={`پیش‌فرض حساب: ${settings.defaultRiskPercent}% — اینجا می‌تونی برای هر معامله جداگانه تغییرش بدی`} error={errors.riskPercent}>
+                <div className="input-with-btn">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min={0}
+                    className="input mono"
+                    placeholder={String(settings.defaultRiskPercent)}
+                    value={input.riskPercent ?? ""}
+                    onChange={(e) => set("riskPercent", num(e.target.value))}
+                    data-testid="field-risk-percent"
+                  />
+                  <div className="chip-group" style={{ marginInlineStart: 4 }}>
+                    {[0.5, 1, 2].map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        className={`chip${(input.riskPercent ?? settings.defaultRiskPercent) === v ? " active" : ""}`}
+                        onClick={() => set("riskPercent", v)}
+                        data-testid={`risk-chip-${v}`}
+                      >
+                        {v}%
+                      </button>
+                    ))}
+                    <button type="button" className="chip" onClick={() => set("riskPercent", null)} data-testid="risk-chip-default" title="استفاده از پیش‌فرض حساب">
+                      پیش‌فرض
+                    </button>
+                  </div>
+                </div>
+              </Field>
               <Field label={`هزینه‌ها (fees) — ${settings.baseCurrency}`}>
                 <input type="number" step="any" className="input mono" value={input.fees || ""} onChange={(e) => set("fees", num(e.target.value) ?? 0)} data-testid="field-fees" />
               </Field>
@@ -316,6 +348,7 @@ export default function TradeFormPage() {
               <div><span className="muted">Notional:</span> <b data-testid="calc-notional">{fmtMoney(d.notional, settings.baseCurrency)}</b></div>
               <div><span className="muted">Margin:</span> <b data-testid="calc-margin">{fmtMoney(d.marginUsed, settings.baseCurrency)}</b></div>
               <div><span className="muted">Risk (1R):</span> <b data-testid="calc-risk">{fmtMoney(d.riskUsd, settings.baseCurrency)}</b> {riskPctOfBalance != null && <span className="muted">({fmtPct(riskPctOfBalance)} از موجودی)</span>}</div>
+              <div><span className="muted">Planned risk:</span> <b data-testid="calc-risk-percent">{effectiveRiskPercent(input.riskPercent, settings.defaultRiskPercent)}%</b> <span className="muted">= {fmtMoney(riskUsdFromPercent(settings.accountBalance, effectiveRiskPercent(input.riskPercent, settings.defaultRiskPercent)), settings.baseCurrency)}</span></div>
               <div><span className="muted">Planned RR:</span> <b data-testid="calc-rr">{d.plannedRR != null ? `${d.plannedRR.toFixed(2)} : 1` : "—"}</b></div>
               {d.liquidationPrice != null && (
                 <div><span className="muted">Liquidation ≈</span> <b data-testid="calc-liq">{fmtNum(d.liquidationPrice, 2)}</b></div>

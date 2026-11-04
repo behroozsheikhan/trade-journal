@@ -18,6 +18,7 @@ win:
       arch: [x64]
     - target: portable
       arch: [x64]
+      artifactName: "${productName}-Portable-${version}.${ext}"
   icon: build/icon.png
   artifactName: "${productName}-Setup-${version}.${ext}"
 nsis:

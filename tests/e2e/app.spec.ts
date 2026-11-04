@@ -33,6 +33,12 @@ test("full flow: create trade -> list -> close -> dashboard stats", async ({ pag
   await page.getByTestId("field-entry-price").fill("67000");
   await page.getByTestId("field-sl").fill("66000");
   await page.getByTestId("field-tp1").fill("69000");
+  // per-trade risk: pick 0.5% and let the app suggest the size -> 10000*0.005/1000 = 0.05
+  await page.getByTestId("risk-chip-0.5").click();
+  await expect(page.getByTestId("calc-risk-percent")).toContainText("0.5%");
+  await page.getByTestId("btn-suggest-qty").click();
+  await expect(page.getByTestId("field-quantity")).toHaveValue("0.05");
+  // back to an explicit size for the rest of the flow
   await page.getByTestId("field-quantity").fill("0.1");
   await page.getByTestId("field-setup").fill("breakout");
   await page.getByTestId("field-emotion-before-calm").click();

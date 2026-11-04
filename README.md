@@ -11,7 +11,8 @@ All data (SQLite + screenshots) stays on your own machine.
 
 - **Complete trade record** — everything a professional journal needs:
   - **Identity**: entry/exit date & time, symbol (BTC/USDT), exchange, market type (spot/futures/margin/paper), direction (long/short), mode (scalp/day/swing), timeframe, leverage + **auto liquidation-price estimate**
-  - **Plan**: entry price, SL, TP1, TP2, quantity, notional, **risk (1R)**, % risk of balance, **planned R:R**, one-click **suggested position size** from your default risk %, fees, funding
+  - **Plan**: entry price, SL, TP1, TP2, quantity, notional, **risk (1R)**, % risk of balance, **planned R:R**, one-click **suggested position size**, fees, funding
+  - **Per-trade risk %**: each trade can override the account default (e.g. 0.5% or 0.8% instead of the default 1%) — used for the position-size suggestion and shown on the trade
   - **Context**: setup tag, signal source, market condition, session, **entry reason (confluence)**, **chart screenshots before entry**
   - **Psychology**: emotion before/during/after, confidence (1–10), "did you follow the plan?", mistake tags (FOMO, moved stop, oversized, …)
   - **Outcome**: exit price/time/reason, auto-computed **P&L / % / ROE / R-multiple**, screenshots after the trade
@@ -19,6 +20,7 @@ All data (SQLite + screenshots) stays on your own machine.
 - **Analytics dashboard**: equity curve (USD or R), monthly P&L heatmap, win rate, **expectancy (R)**, profit factor, avg R, max drawdown, consecutive losses, rule-adherence %
 - **Breakdowns**: performance by setup, symbol, emotion, direction, hour of day, market type
 - **Trade list** with search + filters, **CSV / JSON export & import**, database **backup**
+- **Screenshots** stored as the original file, or re-encoded to **WebP** (configurable quality) to save disk space
 - Dark/light theme, fully local, no accounts, no telemetry
 
 ## Tech stack
@@ -85,9 +87,12 @@ Automated in `.github/workflows/build.yml`:
 
 ## Privacy & data location
 
-- Database: `%APPDATA%/trade-journal/trade-journal.db` (Windows)
-- Screenshots: `%APPDATA%/trade-journal/screenshots/`
-- Backups: `%APPDATA%/trade-journal/backups/`
+- **Installed app (Setup.exe)**: data lives in `%APPDATA%/trade-journal/` (i.e. `C:\Users\<you>\AppData\Roaming\trade-journal\`)
+  - Database: `trade-journal.db` (+ `-wal`/`-shm`)
+  - Screenshots: `screenshots/` — stored with their original format (PNG/JPG/…) unless WebP is enabled in Settings, in which case they are re-encoded to `.webp`
+  - Backups: `backups/`
+- **Portable build** (`TradeJournal-Portable-<version>.exe`): runs directly from any folder/USB **without installation**; data is stored in a `data/` folder **next to the exe**.
+- The exact database path is shown in **Settings → app info**.
 - Nothing is ever sent to a server. Never store seed phrases / private keys / API secrets in the journal or its screenshots.
 
 ## Key math

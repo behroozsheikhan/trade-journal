@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   deriveTrade,
+  effectiveRiskPercent,
+  riskUsdFromPercent,
   liquidationPriceOf,
   plannedRROf,
   pnlUsdOf,
@@ -111,6 +113,7 @@ function makeTrade(patch: Partial<Trade>): Trade {
     takeProfit1: 110,
     takeProfit2: 115,
     quantity: 1,
+    riskPercent: 1,
     fees: 0,
     funding: 0,
     setup: "breakout",
@@ -162,5 +165,27 @@ describe("deriveTrade", () => {
     const d = deriveTrade(makeTrade({ marketType: "spot", leverage: null }));
     expect(d.marginUsed).toBe(100);
     expect(d.liquidationPrice).toBeNull();
+  });
+});
+
+describe("per-trade risk percent", () => {
+  it("effectiveRiskPercent falls back to the default", () => {
+    expect(effectiveRiskPercent(null, 1)).toBe(1);
+    expect(effectiveRiskPercent(0.5, 1)).toBe(0.5);
+    expect(effectiveRiskPercent(0.8, 2)).toBe(0.8);
+    expect(effectiveRiskPercent(0, 1)).toBe(1); // invalid -> default
+  });
+  it("riskUsdFromPercent", () => {
+    expect(riskUsdFromPercent(10_000, 0.5)).toBe(50);
+    expect(riskUsdFromPercent(10_000, 0.8)).toBe(80);
+    expect(riskUsdFromPercent(10_000, 1)).toBe(100);
+  });
+  it("suggestedQuantityOf with a custom per-trade risk %", () => {
+    // balance 10k, risk 0.5% -> 50 USD; entry 67000, sl 66000 -> dist 1000 -> qty 0.05
+    const risk = riskUsdFromPercent(10_000, effectiveRiskPercent(0.5, 1));
+    expect(suggestedQuantityOf(risk, 67000, 66000)).toBeCloseTo(0.05);
+    // 0.8% -> 80 USD -> qty 0.08
+    const risk2 = riskUsdFromPercent(10_000, effectiveRiskPercent(0.8, 1));
+    expect(suggestedQuantityOf(risk2, 67000, 66000)).toBeCloseTo(0.08);
   });
 });

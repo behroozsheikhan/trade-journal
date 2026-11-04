@@ -6,9 +6,11 @@ import fs from "node:fs";
 
 // Fast path: if better-sqlite3 already loads under the current Node, do nothing.
 function loadsUnderCurrentNode() {
+  // require() alone is not enough — the native binding loads lazily on
+  // `new Database()`, so actually open and close an in-memory DB.
   const r = spawnSync(
     process.execPath,
-    ["-e", "require('better-sqlite3')"],
+    ["-e", "new (require('better-sqlite3'))(':memory:').close()"],
     { cwd: process.cwd(), stdio: "ignore" },
   );
   return r.status === 0;

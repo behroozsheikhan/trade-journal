@@ -26,6 +26,7 @@ function sampleInput(over: Partial<TradeInput> = {}): TradeInput {
     takeProfit1: 69000,
     takeProfit2: null,
     quantity: 0.1,
+    riskPercent: 0.8,
     fees: 6.7,
     funding: 0,
     setup: "breakout",
@@ -70,6 +71,7 @@ describe("JournalDB trades CRUD", () => {
     const got = db.getTrade(t.id);
     expect(got?.symbol).toBe("BTC/USDT");
     expect(got?.lesson).toBe("wait for retest");
+    expect(got?.riskPercent).toBe(0.8);
   });
 
   it("lists with filters", () => {

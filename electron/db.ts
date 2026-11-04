@@ -38,6 +38,11 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+/** Fill in fields older records may not have (forward-compatible reads/imports). */
+function normalizeTrade(t: Trade): Trade {
+  return { ...t, riskPercent: t.riskPercent ?? null };
+}
+
 export class JournalDB {
   private db: Database.Database;
   readonly imagesDir: string;
@@ -84,7 +89,7 @@ export class JournalDB {
     }
     const sql = `SELECT data FROM trades${where.length ? " WHERE " + where.join(" AND ") : ""} ORDER BY entryDate DESC, rowid DESC`;
     rows = this.db.prepare(sql).all(...params) as { data: string }[];
-    let trades = rows.map((r) => JSON.parse(r.data) as Trade);
+    let trades = rows.map((r) => normalizeTrade(JSON.parse(r.data) as Trade));
     if (filters.setup) trades = trades.filter((t) => t.setup === filters.setup);
     if (filters.emotion) trades = trades.filter((t) => t.emotionBefore === filters.emotion || t.emotionDuring === filters.emotion || t.emotionAfter === filters.emotion);
     return trades;
@@ -92,7 +97,7 @@ export class JournalDB {
 
   getTrade(id: string): Trade | null {
     const row = this.db.prepare("SELECT data FROM trades WHERE id = ?").get(id) as { data: string } | undefined;
-    return row ? (JSON.parse(row.data) as Trade) : null;
+    return row ? normalizeTrade(JSON.parse(row.data) as Trade) : null;
   }
 
   createTrade(input: TradeInput): Trade {
@@ -237,14 +242,14 @@ export class JournalDB {
     const tx = this.db.transaction(() => {
       for (const t of parsed.trades as Trade[]) {
         if (!t || typeof t !== "object" || !t.id) continue;
-        const clean: Trade = {
+        const clean: Trade = normalizeTrade({
           ...t,
           createdAt: t.createdAt || nowIso(),
           updatedAt: nowIso(),
           mistakeTags: Array.isArray(t.mistakeTags) ? t.mistakeTags : [],
           screenshotsBefore: Array.isArray(t.screenshotsBefore) ? t.screenshotsBefore : [],
           screenshotsAfter: Array.isArray(t.screenshotsAfter) ? t.screenshotsAfter : [],
-        };
+        });
         this.db.prepare("INSERT OR REPLACE INTO trades (id, data, status, entryDate, symbol, direction, rMultiple, pnlUsd) VALUES (?,?,?,?,?,?,?,?)").run(
           clean.id,
           JSON.stringify(clean),

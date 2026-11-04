@@ -26,6 +26,7 @@ function trade(patch: Partial<Trade>): Trade {
     takeProfit1: 110,
     takeProfit2: null,
     quantity: 1, // risk = 10 USD per trade
+    riskPercent: 1,
     fees: 0,
     funding: 0,
     setup: patch.setup ?? "breakout",

@@ -44,6 +44,7 @@ export interface Trade {
   takeProfit1: number | null;
   takeProfit2: number | null;
   quantity: number; // position size in base asset
+  riskPercent: number | null; // planned risk for THIS trade as % of balance (null → settings default)
   fees: number; // total fees in quote currency
   funding: number; // funding paid (positive) / received (negative)
 
@@ -98,6 +99,8 @@ export interface Settings {
   takerFeeRate: number; // e.g. 0.001
   makerFeeRate: number; // e.g. 0.0005
   theme: "dark" | "light";
+  imageFormat: "original" | "webp"; // how screenshots are stored on disk
+  webpQuality: number; // 0..1, used when imageFormat is "webp"
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -108,6 +111,8 @@ export const DEFAULT_SETTINGS: Settings = {
   takerFeeRate: 0.001,
   makerFeeRate: 0.0005,
   theme: "dark",
+  imageFormat: "original",
+  webpQuality: 0.8,
 };
 
 export type ExportFormat = "json" | "csv";
