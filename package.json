@@ -1,6 +1,6 @@
 {
   "name": "trade-journal",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "ژورنال ترید کریپتو — Crypto Trading Journal desktop app (Electron + React + TypeScript + SQLite)",
   "main": "dist-electron/main.js",
   "author": "behroozsheikhan",
