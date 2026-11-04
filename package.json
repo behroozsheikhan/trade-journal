@@ -22,8 +22,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "dist": "npm run build && electron-builder --config electron-builder.yml",
-    "dist:win": "npm run build && electron-builder --config electron-builder.yml --win",
+    "dist": "npm run build && electron-builder --config electron-builder.yml --publish never",
+    "dist:win": "npm run build && electron-builder --config electron-builder.yml --win --publish never",
     "postinstall": "node scripts/postinstall.mjs",
     "test:e2e:sandbox": "node scripts/run-e2e-sandbox.mjs",
     "pretest": "node scripts/ensure-node-abi.mjs"

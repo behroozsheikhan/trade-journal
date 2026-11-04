@@ -17,7 +17,8 @@ const bin =
     : "node_modules/.bin/electron-builder";
 
 try {
-  const r = spawnSync(bin, ["install-app-deps"], { stdio: "inherit" });
+  // .cmd files require shell:true on Windows, otherwise spawnSync throws EINVAL
+  const r = spawnSync(bin, ["install-app-deps"], { stdio: "inherit", shell: process.platform === "win32" });
   if (r.status !== 0) {
     console.warn(`[postinstall] electron-builder install-app-deps exited with ${r.status} (non-fatal)`);
   }
