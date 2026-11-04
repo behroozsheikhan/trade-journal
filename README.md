@@ -51,8 +51,14 @@ npm run dev        # Vite dev server + watch-build of main/preload + Electron
 > Headless sandboxes without access to GitHub release assets / nodejs.org:
 > ```bash
 > ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm install --ignore-scripts
-> npm rebuild better-sqlite3 --nodedir="$(dirname "$(dirname "$(readlink -f "$(which node)")")")"
+> npm_config_nodedir="$(dirname "$(dirname "$(readlink -f "$(which node)")")")" npm rebuild better-sqlite3
+> npm run test          # `pretest` re-ensures the Node-ABI build automatically
+> npm run test:e2e:sandbox   # uses the npm-shipped @sparticuz/chromium binary
 > ```
+>
+> Note: `postinstall` rebuilds better-sqlite3 for Electron's ABI (needed to *run* the app).
+> Set `TJ_ELECTRON_REBUILD=0` to keep the Node ABI (that is what the CI test job does);
+> `npm run test` always re-ensures the Node ABI via its `pretest` hook.
 
 ## Tests
 

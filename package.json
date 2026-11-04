@@ -25,7 +25,8 @@
     "dist": "npm run build && electron-builder --config electron-builder.yml",
     "dist:win": "npm run build && electron-builder --config electron-builder.yml --win",
     "postinstall": "node scripts/postinstall.mjs",
-    "test:e2e:sandbox": "node scripts/run-e2e-sandbox.mjs"
+    "test:e2e:sandbox": "node scripts/run-e2e-sandbox.mjs",
+    "pretest": "node scripts/ensure-node-abi.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0",

@@ -24,8 +24,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Install dependencies
+      - name: Install dependencies (Node ABI for Vitest)
         run: npm ci --no-audit --no-fund
+        env:
+          TJ_ELECTRON_REBUILD: "0"
       - name: Install Playwright chromium
         run: npx playwright install --with-deps chromium
       - name: Typecheck

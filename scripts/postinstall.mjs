@@ -1,7 +1,15 @@
 // Rebuild native modules (better-sqlite3) against the installed Electron ABI.
-// Non-fatal: unit tests run against the plain Node ABI build, and CI runners
-// have full toolchains, so a failure here must not break `npm install`.
+// This is needed to RUN the Electron app (`npm run dev`), but it clobbers the
+// Node-ABI build that Vitest needs. So:
+//   - default: rebuild for Electron (local dev)
+//   - TJ_ELECTRON_REBUILD=0: skip (used by the CI test job, which runs Vitest
+//     under plain Node and lets better-sqlite3 install its own Node prebuild)
 import { spawnSync } from "node:child_process";
+
+if (process.env.TJ_ELECTRON_REBUILD === "0") {
+  console.log("[postinstall] TJ_ELECTRON_REBUILD=0 -> skipping Electron ABI rebuild (Node ABI kept for tests)");
+  process.exit(0);
+}
 
 const bin =
   process.platform === "win32"
