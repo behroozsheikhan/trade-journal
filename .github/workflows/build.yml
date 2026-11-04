@@ -1,11 +1,15 @@
-name: CI — Test & Build
+name: CI Test and Build
 
 on:
   push:
-    branches: [main, "arena/**"]
+    branches:
+      - main
+      - "arena/**"
   pull_request:
   release:
-    types: [published]
+    types:
+      - published
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -26,7 +30,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Typecheck
         run: npm run typecheck
-      - name: Unit & component tests (Vitest)
+      - name: Unit and component tests (Vitest)
         run: npm run test
       - name: UI tests (Playwright, headless)
         run: npm run test:e2e
@@ -48,12 +52,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Build app + installer
+      - name: Build app and installer
         run: npm run dist:win
-        env:
-          # Optional signing secrets (leave unset for unsigned builds):
-          # WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          # WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
@@ -61,7 +61,7 @@ jobs:
             release/**/*.exe
             release/**/*.blockmap
           retention-days: 30
-      - name: Publish release (on GitHub Releases)
+      - name: Publish to GitHub Releases (release events only)
         if: github.event_name == 'release'
         run: npx electron-builder --config electron-builder.yml --win --publish always
         env:
