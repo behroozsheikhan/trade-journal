@@ -19,6 +19,8 @@ export default function JournalsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [stats, setStats] = useState<Record<string, JournalStat>>({});
   const [newName, setNewName] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalName, setModalName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const navigate = useNavigate();
@@ -51,13 +53,24 @@ export default function JournalsPage() {
     };
   }, [journals]);
 
-  const create = async () => {
-    const name = newName.trim();
+  const create = async (rawName: string) => {
+    const name = rawName.trim();
     if (!name) return;
     await getApi().createJournal(name);
     setNewName("");
+    setModalName("");
+    setModalOpen(false);
     toast("ژورنال جدید ساخته شد");
     await refresh();
+  };
+
+  /** Header button: create directly when the inline field has a name, otherwise ask for one. */
+  const onCreateClick = () => {
+    if (newName.trim()) void create(newName);
+    else {
+      setModalName("");
+      setModalOpen(true);
+    }
   };
 
   const remove = async (j: Journal) => {
@@ -105,10 +118,10 @@ export default function JournalsPage() {
             placeholder="نام ژورنال جدید… (مثلاً بک‌تست استراتژی)"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void create()}
+            onKeyDown={(e) => e.key === "Enter" && void create(newName)}
             data-testid="new-journal-input"
           />
-          <button className="btn primary" onClick={() => void create()} data-testid="btn-create-journal">
+          <button className="btn primary" onClick={onCreateClick} data-testid="btn-create-journal">
             + ژورنال جدید
           </button>
         </div>
@@ -120,7 +133,7 @@ export default function JournalsPage() {
           return (
             <div
               key={j.id}
-              className={`journal-card${j.id === activeId ? " active" : ""}`}
+              className="journal-card"
               data-testid="journal-card"
               data-journal-id={j.id}
               onClick={() => enter(j)}
@@ -174,6 +187,10 @@ export default function JournalsPage() {
                   <b data-testid="journal-stat-count">{st ? st.count : "…"}</b>
                 </div>
                 <div className="journal-stat">
+                  <span className="muted small">باز</span>
+                  <b data-testid="journal-stat-open">{st ? st.open : "…"}</b>
+                </div>
+                <div className="journal-stat">
                   <span className="muted small">P&L خالص</span>
                   <b className={st ? pnlClass(st.netPnl) : ""} data-testid="journal-stat-pnl">
                     {st ? fmtMoney(st.netPnl, currency) : "…"}
@@ -183,21 +200,55 @@ export default function JournalsPage() {
                   <span className="muted small">win rate</span>
                   <b data-testid="journal-stat-winrate">{st && st.winRate != null ? fmtPct(st.winRate * 100) : "—"}</b>
                 </div>
-                <div className="journal-stat">
-                  <span className="muted small">باز</span>
-                  <b data-testid="journal-stat-open">{st ? st.open : "…"}</b>
-                </div>
               </div>
-              {j.id === activeId && <div className="journal-card-badge">ژورنال فعال</div>}
+              <div className="journal-card-foot muted small">ساخته‌شده: {new Date(j.createdAt).toLocaleDateString("fa-IR")}</div>
             </div>
           );
         })}
 
-        <button className="journal-card journal-card-new" data-testid="btn-new-journal-card" onClick={() => document.querySelector<HTMLInputElement>('[data-testid="new-journal-input"]')?.focus()}>
+        <button
+          className="journal-card journal-card-new"
+          data-testid="btn-new-journal-card"
+          onClick={() => {
+            setModalName("");
+            setModalOpen(true);
+          }}
+        >
           <span className="journal-card-plus">＋</span>
           <span>ژورنال جدید</span>
         </button>
       </div>
+
+      {modalOpen && (
+        <div className="modal-backdrop" data-testid="new-journal-modal" onClick={() => setModalOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>ژورنال جدید</h3>
+            <p className="muted">یک نام برای ژورنال جدید وارد کن — مثلاً «بک‌تست استراتژی».</p>
+            <input
+              className="input"
+              placeholder="نام ژورنال…"
+              value={modalName}
+              autoFocus
+              onChange={(e) => setModalName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void create(modalName)}
+              data-testid="new-journal-modal-input"
+            />
+            <div className="modal-actions">
+              <button className="btn ghost" onClick={() => setModalOpen(false)} data-testid="new-journal-modal-cancel">
+                انصراف
+              </button>
+              <button
+                className="btn primary"
+                disabled={!modalName.trim()}
+                onClick={() => void create(modalName)}
+                data-testid="new-journal-modal-submit"
+              >
+                ساخت ژورنال
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

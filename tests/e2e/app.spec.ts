@@ -28,6 +28,33 @@ test("journal picker is the first screen and shows card stats", async ({ page })
   await expect(page.getByTestId("journal-stat-winrate").first()).toContainText("%");
 });
 
+test("sidebar shows only journals+settings on the picker and full nav inside a journal", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForSelector('[data-testid="journals-page"]');
+  await expect(page.getByTestId("brand")).toBeVisible();
+  await expect(page.getByTestId("nav-journals")).toBeVisible();
+  await expect(page.getByTestId("nav-settings")).toBeVisible();
+  await expect(page.getByTestId("nav-dashboard")).toHaveCount(0);
+  await page.getByTestId("journal-card").first().click();
+  await page.waitForSelector('[data-testid="dashboard"]');
+  await expect(page.getByTestId("nav-home")).toBeVisible();
+  await expect(page.getByTestId("nav-dashboard")).toBeVisible();
+  await expect(page.getByTestId("nav-trades")).toBeVisible();
+  await expect(page.getByTestId("nav-new-trade")).toBeVisible();
+  await expect(page.getByTestId("nav-settings")).toBeVisible();
+});
+
+test("new journal button opens a dialog when the name field is empty", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForSelector('[data-testid="journals-page"]');
+  await page.getByTestId("btn-new-journal-card").click();
+  await page.waitForSelector('[data-testid="new-journal-modal"]');
+  await page.getByTestId("new-journal-modal-input").fill("ژورنال تست");
+  await page.getByTestId("new-journal-modal-submit").click();
+  await expect(page.getByTestId("journal-card")).toHaveCount(2);
+  await expect(page.getByTestId("new-journal-modal")).toHaveCount(0);
+});
+
 test("multiple journals are independent workspaces", async ({ page }) => {
   await page.evaluate(() => window.__TJ__?.seedDemo(8)); // into the default journal
   await page.goto("/");

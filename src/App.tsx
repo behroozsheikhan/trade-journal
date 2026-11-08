@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Navigate, NavLink, Route, Routes } from "react-router-dom";
+import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import type { Settings } from "../shared/types";
 import { getApi } from "./api";
 import { JournalProvider, useJournal } from "./journal";
@@ -11,30 +11,46 @@ import TradeFormPage from "./pages/TradeFormPage";
 import TradeDetailPage from "./pages/TradeDetailPage";
 import SettingsPage from "./pages/SettingsPage";
 
+function NavItem({ to, testId, children }: { to: string; testId: string; children: React.ReactNode }) {
+  return (
+    <NavLink to={to} className={({ isActive }) => (isActive ? "active" : "")} data-testid={testId}>
+      {children}
+    </NavLink>
+  );
+}
+
 function Sidebar() {
-  const { activeJournal } = useJournal();
+  const { activeId } = useJournal();
+  const location = useLocation();
+  const onPicker = location.pathname === "/";
+  // Journal-scoped nav is only shown while inside a journal's pages.
+  const inJournal = !!activeId && /^\/(dashboard|trades)/.test(location.pathname);
   return (
     <aside className="sidebar">
-      <NavLink to="/" className="brand" data-testid="nav-journals">
+      {/* Brand is intentionally NOT a link — the nav below handles navigation. */}
+      <div className="brand" data-testid="brand">
         <div className="brand-icon">📓</div>
-        <div>
-          <div className="brand-name">ژورنال ترید</div>
-          <div className="brand-sub" data-testid="sidebar-journal-name">{activeJournal ? activeJournal.name : "…"}</div>
-        </div>
-      </NavLink>
+        <div className="brand-name">ژورنال ترید</div>
+      </div>
       <nav className="nav">
-        <NavLink to="/dashboard" className={({ isActive }) => (isActive ? "active" : "")} data-testid="nav-dashboard">
-          📊 داشبورد
-        </NavLink>
-        <NavLink to="/trades" className={({ isActive }) => (isActive ? "active" : "")} data-testid="nav-trades">
-          📒 معاملات
-        </NavLink>
-        <NavLink to="/trades/new" className={({ isActive }) => (isActive ? "active" : "")} data-testid="nav-new-trade">
-          ➕ معامله جدید
-        </NavLink>
-        <NavLink to="/settings" className={({ isActive }) => (isActive ? "active" : "")} data-testid="nav-settings">
-          ⚙️ تنظیمات
-        </NavLink>
+        {onPicker ? (
+          <>
+            <NavItem to="/" testId="nav-journals">🗂️ ژورنال‌های من</NavItem>
+            <NavItem to="/settings" testId="nav-settings">⚙️ تنظیمات</NavItem>
+          </>
+        ) : (
+          <>
+            <NavItem to="/" testId="nav-home">🏠 صفحه اصلی</NavItem>
+            {inJournal && (
+              <>
+                <NavItem to="/dashboard" testId="nav-dashboard">📊 داشبورد</NavItem>
+                <NavItem to="/trades" testId="nav-trades">📒 معاملات</NavItem>
+                <NavItem to="/trades/new" testId="nav-new-trade">➕ معامله جدید</NavItem>
+              </>
+            )}
+            <NavItem to="/settings" testId="nav-settings">⚙️ تنظیمات</NavItem>
+          </>
+        )}
       </nav>
       <div className="sidebar-foot muted small">100% آفلاین — داده‌ها روی دستگاه توست</div>
     </aside>

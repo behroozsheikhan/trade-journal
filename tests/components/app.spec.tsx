@@ -25,16 +25,44 @@ describe("App (jsdom, mock API)", () => {
     expect(screen.getByTestId("journals-page")).toBeInTheDocument();
     expect(screen.getByTestId("journal-card-name").textContent).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId("journal-stat-count").textContent).toBe("14")); // 12 closed + 2 open
-    // click the card -> dashboard of that journal
+    // brand is not a link; picker sidebar shows only journals + settings
+    expect(screen.getByTestId("brand").closest("a")).toBeNull();
+    expect(screen.getByTestId("nav-journals")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-settings")).toBeInTheDocument();
+    expect(screen.queryByTestId("nav-dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nav-home")).not.toBeInTheDocument();
+    // click the card -> dashboard of that journal, full nav appears
     const user = userEvent.setup();
     await user.click(card);
     await waitFor(() => expect(screen.getByTestId("stat-net-pnl")).toBeInTheDocument());
+    expect(screen.getByTestId("nav-home")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-trades")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-new-trade")).toBeInTheDocument();
     // 12 closed + 2 open seeded
     expect(screen.getByTestId("stat-win-rate").textContent).toMatch(/%/);
     expect(screen.getByTestId("equity-chart")).toBeInTheDocument();
     expect(screen.getByTestId("heatmap")).toBeInTheDocument();
     expect(screen.getByTestId("table-setup")).toBeInTheDocument();
     expect(screen.getByTestId("open-trades-banner")).toBeInTheDocument();
+  });
+
+  it("opens a new-journal dialog when the button is clicked with an empty name", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByTestId("journal-card");
+    expect(screen.getAllByTestId("journal-card")).toHaveLength(1);
+    // empty inline field -> button opens the dialog instead of doing nothing
+    await user.click(screen.getByTestId("btn-create-journal"));
+    await screen.findByTestId("new-journal-modal");
+    await user.type(screen.getByTestId("new-journal-modal-input"), "بک‌تست استراتژی");
+    await user.click(screen.getByTestId("new-journal-modal-submit"));
+    await waitFor(() => expect(screen.getAllByTestId("journal-card")).toHaveLength(2));
+    expect(screen.queryByTestId("new-journal-modal")).not.toBeInTheDocument();
   });
 
   it("creates a trade through the form and shows it in the list", async () => {
