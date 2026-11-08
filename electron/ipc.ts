@@ -8,6 +8,11 @@ import type { ExportFormat } from "../shared/types";
 import type { JournalDB } from "./db";
 
 export function registerIpc(db: JournalDB, getVersion: () => string): void {
+  ipcMain.handle(IPC_CHANNELS.journalsList, () => db.listJournals());
+  ipcMain.handle(IPC_CHANNELS.journalsCreate, (_e, name: string) => db.createJournal(name));
+  ipcMain.handle(IPC_CHANNELS.journalsUpdate, (_e, { id, patch }: { id: string; patch: { name?: string } }) => db.updateJournal(id, patch));
+  ipcMain.handle(IPC_CHANNELS.journalsDelete, (_e, id: string) => db.deleteJournal(id));
+
   ipcMain.handle(IPC_CHANNELS.tradesList, (_e, filters) => db.listTrades(filters));
   ipcMain.handle(IPC_CHANNELS.tradesGet, (_e, id: string) => db.getTrade(id));
   ipcMain.handle(IPC_CHANNELS.tradesCreate, (_e, input) => db.createTrade(input));

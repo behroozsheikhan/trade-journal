@@ -1,11 +1,83 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { AppInfo, Settings } from "../../shared/types";
+import type { AppInfo, ManagedItem, Settings } from "../../shared/types";
+import { setupLabel } from "../../shared/labels";
 import { getApi, isElectron } from "../api";
+import { useJournal } from "../journal";
 import { downloadTextFile } from "../format";
 import { Field, Section, Spinner, useToast } from "../components/ui";
 
+/** Add / remove / enable-disable manager for a settings list (setups, exchanges). */
+function ListManager({
+  title,
+  hint,
+  items,
+  onChange,
+  prefix,
+  labelFn,
+  testId,
+}: {
+  title: string;
+  hint?: string;
+  items: ManagedItem[];
+  onChange: (items: ManagedItem[]) => void;
+  prefix: string;
+  labelFn?: (label: string) => string;
+  testId: string;
+}) {
+  const [val, setVal] = useState("");
+  const add = () => {
+    const label = val.trim();
+    if (!label) return;
+    if (items.some((i) => i.label.toLowerCase() === label.toLowerCase())) return;
+    onChange([...items, { id: `${Date.now()}-${label}`, label, enabled: true }]);
+    setVal("");
+  };
+  return (
+    <div className="list-manager" data-testid={testId}>
+      <div className="muted small" style={{ marginBottom: 6 }}>
+        {title} {hint ? `— ${hint}` : ""}
+      </div>
+      {items.map((it, i) => (
+        <div className="list-row" key={it.id} data-testid={`${prefix}-row-${i}`}>
+          <label className="list-row-label">
+            <input
+              type="checkbox"
+              checked={it.enabled}
+              onChange={() => onChange(items.map((x) => (x.id === it.id ? { ...x, enabled: !x.enabled } : x)))}
+              data-testid={`${prefix}-toggle-${i}`}
+            />
+            <span className={it.enabled ? "" : "muted"}>{labelFn ? labelFn(it.label) : it.label}</span>
+          </label>
+          <button
+            className="btn ghost small danger"
+            onClick={() => onChange(items.filter((x) => x.id !== it.id))}
+            data-testid={`${prefix}-delete-${i}`}
+            title="حذف"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <div className="list-row list-row-add">
+        <input
+          className="input"
+          placeholder="افزودن مورد جدید…"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+          data-testid={`${prefix}-new-input`}
+        />
+        <button className="btn small" onClick={add} data-testid={`btn-add-${prefix}`}>
+          افزودن
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const toast = useToast();
+  const { activeId } = useJournal();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -46,11 +118,11 @@ export default function SettingsPage() {
   };
 
   const wipeAll = async () => {
-    if (!window.confirm("همه معاملات حذف شوند؟ (ابتدا خروجی JSON بگیر)")) return;
+    if (!window.confirm("همه معاملات ژورنال فعلی حذف شوند؟ (ابتدا خروجی JSON بگیر)")) return;
     const api = getApi();
-    const all = await api.listTrades();
+    const all = await api.listTrades(activeId ? { journalId: activeId } : undefined);
     for (const t of all) await api.deleteTrade(t.id);
-    toast("همه معاملات حذف شدند");
+    toast("معاملات این ژورنال حذف شدند");
     window.location.reload();
   };
 
@@ -133,6 +205,28 @@ export default function SettingsPage() {
           )}
         </Section>
       </div>
+
+      <Section title="لیست‌های قابل مدیریت (ستاپ و صرافی)" subtitle="موارد این لیست‌ها در فرم معامله به‌صورت دراپ‌داون نمایش داده می‌شوند؛ می‌توانید اضافه، حذف یا غیرفعال کنید" testId="sec-lists">
+        <div className="two-col">
+          <ListManager
+            title="ستاپ‌ها (Setup)"
+            hint="مثلاً breakout"
+            items={settings.setups}
+            onChange={(setups) => setSettings({ ...settings, setups })}
+            prefix="setup"
+            labelFn={setupLabel}
+            testId="manager-setups"
+          />
+          <ListManager
+            title="صرافی‌ها (Exchange)"
+            hint="مثلاً Binance"
+            items={settings.exchanges}
+            onChange={(exchanges) => setSettings({ ...settings, exchanges })}
+            prefix="exchange"
+            testId="manager-exchanges"
+          />
+        </div>
+      </Section>
     </div>
   );
 }

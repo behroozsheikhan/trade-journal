@@ -16,7 +16,10 @@ if (!isElectron()) {
     api: getApi(),
     isMock: true,
     seedDemo: async (n = 24) => {
-      await seedDemoTrades(getApi(), n);
+      const api = getApi();
+      const journals = await api.listJournals();
+      const active = localStorage.getItem("tj.activeJournalId");
+      await seedDemoTrades(api, n, journals.find((j) => j.id === active)?.id ?? journals[0]?.id);
     },
   };
 }

@@ -44,12 +44,14 @@ import {
 } from "../../shared/labels";
 import type { Settings, Trade, TradeInput } from "../../shared/types";
 import { getApi } from "../api";
+import { useJournal } from "../journal";
 import { fmtMoney, fmtNum, fmtPct, fmtR, nowLocal, pnlClass, todayLocal } from "../format";
 import { ImagePicker } from "../components/ImagePicker";
 import { ChipGroup, ConfirmDialog, Field, MultiChip, Section, Segmented, Spinner, useToast } from "../components/ui";
 
-function emptyInput(): TradeInput {
+function emptyInput(journalId: string): TradeInput {
   return {
+    journalId,
     entryDate: todayLocal(),
     entryTime: nowLocal(),
     exitDate: null,
@@ -103,6 +105,7 @@ export default function TradeFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const { activeId } = useJournal();
   const [input, setInput] = useState<TradeInput | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -123,9 +126,9 @@ export default function TradeFormPage() {
         setInput(rest);
       });
     } else {
-      setInput(emptyInput());
+      setInput(emptyInput(activeId ?? ""));
     }
-  }, [id, navigate, toast]);
+  }, [id, activeId, navigate, toast]);
 
   const set = <K extends keyof TradeInput>(k: K, v: TradeInput[K]) => setInput((prev) => (prev ? { ...prev, [k]: v } : prev));
 
@@ -226,7 +229,7 @@ export default function TradeFormPage() {
               <Field label="صرافی (Exchange)">
                 <input className="input" list="exchanges" value={input.exchange} onChange={(e) => set("exchange", e.target.value)} data-testid="field-exchange" />
                 <datalist id="exchanges">
-                  {SUGGESTED_EXCHANGES.map((s) => (
+                  {(settings ? settings.exchanges.filter((e) => e.enabled).map((e) => e.label) : SUGGESTED_EXCHANGES).map((s) => (
                     <option key={s} value={s} />
                   ))}
                 </datalist>
@@ -320,7 +323,7 @@ export default function TradeFormPage() {
                     data-testid="field-risk-percent"
                   />
                   <div className="chip-group" style={{ marginInlineStart: 4 }}>
-                    {[0.5, 1, 2].map((v) => (
+                    {[0.25, 0.5, 1, 2].map((v) => (
                       <button
                         key={v}
                         type="button"
@@ -361,7 +364,9 @@ export default function TradeFormPage() {
               <Field label="ستاپ (Setup)">
                 <input className="input" list="setups" value={input.setup} onChange={(e) => set("setup", e.target.value)} placeholder="مثلاً breakout" data-testid="field-setup" />
                 <datalist id="setups">
-                  {SUGGESTED_SETUPS.map((s) => (
+                  {(settings && settings.setups.some((x) => x.enabled)
+                    ? settings.setups.filter((x) => x.enabled).map((x) => x.label)
+                    : SUGGESTED_SETUPS).map((s) => (
                     <option key={s} value={s}>{setupLabel(s)}</option>
                   ))}
                 </datalist>

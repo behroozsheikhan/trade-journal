@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { deriveTrade } from "../../shared/calc";
 import type { Settings, Trade, TradeFilters } from "../../shared/types";
 import { getApi, isElectron } from "../api";
+import { useJournal } from "../journal";
 import { fmtMoney, fmtR, pnlClass, downloadTextFile } from "../format";
 import { DIRECTION_LABELS, STATUS_LABELS, setupLabel } from "../../shared/labels";
 import { DIRECTIONS, TRADE_STATUSES } from "../../shared/enums";
@@ -10,6 +11,7 @@ import { EmptyState, Spinner, useToast } from "../components/ui";
 
 export default function TradesPage() {
   const [searchParams] = useSearchParams();
+  const { activeId } = useJournal();
   const [trades, setTrades] = useState<Trade[] | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [filters, setFilters] = useState<TradeFilters>(() => ({
@@ -19,15 +21,15 @@ export default function TradesPage() {
 
   useEffect(() => {
     const api = getApi();
-    void api.listTrades(filters).then(setTrades);
+    void api.listTrades({ ...filters, journalId: activeId ?? undefined }).then(setTrades);
     void api.getSettings().then(setSettings);
-  }, [filters]);
+  }, [filters, activeId]);
 
   const setups = useMemo(() => {
     const s = new Set<string>();
-    void getApi().listTrades().then((all) => all.forEach((t) => t.setup && s.add(t.setup)));
+    void getApi().listTrades(activeId ? { journalId: activeId } : undefined).then((all) => all.forEach((t) => t.setup && s.add(t.setup)));
     return s;
-  }, []);
+  }, [activeId]);
 
   const exportData = async (format: "json" | "csv") => {
     const res = await getApi().exportData(format);
@@ -88,6 +90,17 @@ export default function TradesPage() {
           <option value="all">همه جهت‌ها</option>
           {DIRECTIONS.map((d) => (
             <option key={d} value={d}>{DIRECTION_LABELS[d]}</option>
+          ))}
+        </select>
+        <select
+          className="input"
+          value={filters.exchange ?? ""}
+          onChange={(e) => setFilters((f) => ({ ...f, exchange: e.target.value || undefined }))}
+          data-testid="filter-exchange"
+        >
+          <option value="">همه صرافی‌ها</option>
+          {(settings?.exchanges ?? []).filter((e) => e.enabled).map((e) => (
+            <option key={e.id} value={e.label}>{e.label}</option>
           ))}
         </select>
         <input

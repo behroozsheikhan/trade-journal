@@ -1,3 +1,4 @@
+import { SUGGESTED_EXCHANGES, SUGGESTED_SETUPS } from "./enums";
 import type {
   Direction,
   MarketType,
@@ -17,11 +18,29 @@ export interface ImageRef {
   name: string;
 }
 
+/** A journal = one independent workspace (e.g. "real day trading" vs "backtest"). */
+export interface Journal {
+  id: string;
+  name: string;
+  createdAt: string; // ISO
+}
+
+/**
+ * A user-managed dropdown entry (setups / exchanges).
+ * `label` is the exact value stored on trades; `enabled` items show in dropdowns.
+ */
+export interface ManagedItem {
+  id: string;
+  label: string;
+  enabled: boolean;
+}
+
 /** One journalled trade — the full record, exactly as persisted in SQLite (JSON column). */
 export interface Trade {
   id: string;
   createdAt: string; // ISO
   updatedAt: string; // ISO
+  journalId: string; // which journal (workspace) this trade belongs to
 
   // --- Identity / timing ---
   entryDate: string; // YYYY-MM-DD
@@ -82,7 +101,9 @@ export interface Trade {
 export type TradeInput = Omit<Trade, "id" | "createdAt" | "updatedAt">;
 
 export interface TradeFilters {
+  journalId?: string; // scope to one journal/workspace
   search?: string;
+  exchange?: string;
   status?: TradeStatus | "all";
   direction?: Direction | "all";
   setup?: string;
@@ -101,6 +122,8 @@ export interface Settings {
   theme: "dark" | "light";
   imageFormat: "original" | "webp"; // how screenshots are stored on disk
   webpQuality: number; // 0..1, used when imageFormat is "webp"
+  setups: ManagedItem[]; // manageable setup dropdown (add / remove / enable-disable)
+  exchanges: ManagedItem[]; // manageable exchange dropdown
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -113,7 +136,11 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
   imageFormat: "original",
   webpQuality: 0.8,
+  setups: SUGGESTED_SETUPS.map((s) => ({ id: s, label: s, enabled: true })),
+  exchanges: SUGGESTED_EXCHANGES.map((s) => ({ id: s, label: s, enabled: true })),
 };
+
+export const DEFAULT_JOURNAL_NAME = "ژورنال اصلی";
 
 export type ExportFormat = "json" | "csv";
 

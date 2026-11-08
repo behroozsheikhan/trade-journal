@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { computeStats } from "../../shared/stats";
 import type { Settings, Trade } from "../../shared/types";
 import { getApi } from "../api";
+import { useJournal } from "../journal";
 import { fmtMoney, fmtPct, fmtR, fmtDuration, pnlClass } from "../format";
 import { DIRECTION_LABELS, STATUS_LABELS, setupLabel, EMOTION_LABELS } from "../../shared/labels";
 import { EquityChart, Heatmap } from "../components/charts";
@@ -10,14 +11,15 @@ import { BreakdownTable } from "../components/BreakdownTable";
 import { Section, StatCard, EmptyState, Spinner } from "../components/ui";
 
 export default function Dashboard() {
+  const { activeId } = useJournal();
   const [trades, setTrades] = useState<Trade[] | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
 
   useEffect(() => {
     const api = getApi();
-    void api.listTrades().then(setTrades);
+    void api.listTrades(activeId ? { journalId: activeId } : undefined).then(setTrades);
     void api.getSettings().then(setSettings);
-  }, []);
+  }, [activeId]);
 
   const stats = useMemo(() => (trades ? computeStats(trades, settings?.maintenanceMarginRate ?? 0.005) : null), [trades, settings]);
 

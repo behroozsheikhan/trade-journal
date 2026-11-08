@@ -3,7 +3,7 @@
 // in localStorage so e2e tests are fully hermetic and headless.
 
 import type { ExportResult, ImportResult, JournalAPI } from "../shared/api";
-import { DEFAULT_SETTINGS, type ImageRef, type Settings, type Trade, type TradeFilters, type TradeInput } from "../shared/types";
+import { DEFAULT_JOURNAL_NAME, DEFAULT_SETTINGS, type ImageRef, type Journal, type Settings, type Trade, type TradeFilters, type TradeInput } from "../shared/types";
 
 const LS_KEY = "trade-journal-mock-v1";
 
@@ -14,6 +14,7 @@ interface MockImage {
 }
 
 interface MockStore {
+  journals: Journal[];
   trades: Trade[];
   settings: Settings;
   images: Record<string, MockImage>;
@@ -22,11 +23,27 @@ interface MockStore {
 function load(): MockStore {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw) as MockStore;
+    if (raw) {
+      const s = JSON.parse(raw) as Partial<MockStore>;
+      // migrate stores from before multi-journal support
+      if (!Array.isArray(s.journals) || s.journals.length === 0) {
+        const def: Journal = { id: crypto.randomUUID(), name: DEFAULT_JOURNAL_NAME, createdAt: new Date().toISOString() };
+        s.journals = [def];
+        s.trades = (s.trades ?? []).map((t) => ({ ...t, journalId: (t as Trade).journalId || def.id }));
+      }
+      if (!s.settings) s.settings = { ...DEFAULT_SETTINGS };
+      if (!Array.isArray(s.settings.setups)) s.settings.setups = DEFAULT_SETTINGS.setups;
+      if (!Array.isArray(s.settings.exchanges)) s.settings.exchanges = DEFAULT_SETTINGS.exchanges;
+      saveStore(s as MockStore); // persist immediately so generated ids stay stable
+      return s as MockStore;
+    }
   } catch {
     /* corrupted storage -> start fresh */
   }
-  return { trades: [], settings: { ...DEFAULT_SETTINGS }, images: {} };
+  const def: Journal = { id: crypto.randomUUID(), name: DEFAULT_JOURNAL_NAME, createdAt: new Date().toISOString() };
+  const fresh: MockStore = { journals: [def], trades: [], settings: { ...DEFAULT_SETTINGS }, images: {} };
+  saveStore(fresh); // persist immediately so the default journal id stays stable across reloads
+  return fresh;
 }
 
 function saveStore(s: MockStore): void {
@@ -52,8 +69,41 @@ export class MockApi implements JournalAPI {
     return load();
   }
 
+  async listJournals(): Promise<Journal[]> {
+    return [...this.store().journals];
+  }
+
+  async createJournal(name: string): Promise<Journal> {
+    const s = this.store();
+    const j: Journal = { id: crypto.randomUUID(), name: name.trim() || DEFAULT_JOURNAL_NAME, createdAt: new Date().toISOString() };
+    s.journals.push(j);
+    saveStore(s);
+    return j;
+  }
+
+  async updateJournal(id: string, patch: Partial<Pick<Journal, "name">>): Promise<Journal> {
+    const s = this.store();
+    const i = s.journals.findIndex((j) => j.id === id);
+    if (i < 0) throw new Error("journal not found");
+    s.journals[i] = { ...s.journals[i], name: patch.name?.trim() || s.journals[i].name };
+    saveStore(s);
+    return s.journals[i];
+  }
+
+  async deleteJournal(id: string): Promise<void> {
+    const s = this.store();
+    const tradeIds = new Set(s.trades.filter((t) => t.journalId === id).map((t) => t.id));
+    s.trades = s.trades.filter((t) => t.journalId !== id);
+    for (const [imgId, img] of Object.entries(s.images)) if (tradeIds.has(img.tradeId)) delete s.images[imgId];
+    s.journals = s.journals.filter((j) => j.id !== id);
+    if (s.journals.length === 0) s.journals.push({ id: crypto.randomUUID(), name: DEFAULT_JOURNAL_NAME, createdAt: new Date().toISOString() });
+    saveStore(s);
+  }
+
   async listTrades(filters: TradeFilters = {}): Promise<Trade[]> {
     let trades = [...this.store().trades];
+    if (filters.journalId) trades = trades.filter((t) => t.journalId === filters.journalId);
+    if (filters.exchange) trades = trades.filter((t) => t.exchange === filters.exchange);
     if (filters.status && filters.status !== "all") trades = trades.filter((t) => t.status === filters.status);
     if (filters.direction && filters.direction !== "all") trades = trades.filter((t) => t.direction === filters.direction);
     const from = filters.from;
@@ -142,7 +192,7 @@ export class MockApi implements JournalAPI {
     }
     return {
       ok: true,
-      content: JSON.stringify({ app: "trade-journal", version: 1, exportedAt: new Date().toISOString(), settings: s.settings, trades: s.trades, images: Object.entries(s.images).map(([id, im]) => ({ id, tradeId: im.tradeId, name: im.name, dataBase64: im.dataBase64 })) }, null, 2),
+      content: JSON.stringify({ app: "trade-journal", version: 1, exportedAt: new Date().toISOString(), settings: s.settings, journals: s.journals, trades: s.trades, images: Object.entries(s.images).map(([id, im]) => ({ id, tradeId: im.tradeId, name: im.name, dataBase64: im.dataBase64 })) }, null, 2),
       count: s.trades.length,
     };
   }
@@ -152,10 +202,18 @@ export class MockApi implements JournalAPI {
   }
 
   async importDataString(content: string): Promise<ImportResult> {
-    const parsed = JSON.parse(content) as { trades?: Trade[]; settings?: Partial<Settings>; images?: { id: string; tradeId: string; name: string; dataBase64: string }[] };
+    const parsed = JSON.parse(content) as { journals?: Journal[]; trades?: Trade[]; settings?: Partial<Settings>; images?: { id: string; tradeId: string; name: string; dataBase64: string }[] };
     if (!parsed || !Array.isArray(parsed.trades)) throw new Error("Invalid journal file");
     const s = this.store();
+    const defJournal = s.journals[0];
+    for (const j of parsed.journals ?? []) {
+      if (!j?.id || !j?.name) continue;
+      const i = s.journals.findIndex((x) => x.id === j.id);
+      if (i >= 0) s.journals[i] = j;
+      else s.journals.push(j);
+    }
     for (const t of parsed.trades) {
+      if (t && !(t as Trade).journalId) (t as Trade).journalId = defJournal.id;
       if (!t?.id) continue;
       const i = s.trades.findIndex((x) => x.id === t.id);
       if (i >= 0) s.trades[i] = t;
@@ -212,9 +270,12 @@ const DEMO_EMOTIONS = ["calm", "confident", "anxious", "fomo", "greedy"] as cons
 const DEMO_MISTAKES = ["late-entry", "moved-stop", "fomo", "oversized", "early-exit"];
 
 /** Seed `n` realistic closed trades (+2 open) into the given API. Deterministic. */
-export async function seedDemoTrades(api: JournalAPI, n = 24): Promise<void> {
+export async function seedDemoTrades(api: JournalAPI, n = 24, journalId?: string): Promise<void> {
   const rnd = mulberry32(42);
   const settings = await api.getSettings();
+  const journals = await api.listJournals();
+  const jid = journalId ?? journals[0]?.id ?? "";
+  const defaultExchange = settings.exchanges.find((e) => e.enabled)?.label ?? "Binance";
   const today = new Date();
   for (let i = 0; i < n; i++) {
     const symbol = DEMO_SYMBOLS[Math.floor(rnd() * DEMO_SYMBOLS.length)];
@@ -243,12 +304,13 @@ export async function seedDemoTrades(api: JournalAPI, n = 24): Promise<void> {
     const mistakes = rnd() > 0.6 ? [DEMO_MISTAKES[Math.floor(rnd() * DEMO_MISTAKES.length)]] : [];
     const followed = mistakes.length === 0 ? "yes" : rnd() > 0.5 ? "partial" : "no";
     await api.createTrade({
+      journalId: jid,
       entryDate,
       entryTime,
       exitDate,
       exitTime,
       symbol,
-      exchange: "Binance",
+      exchange: defaultExchange,
       marketType: rnd() > 0.3 ? "futures" : "spot",
       direction: direction as "long" | "short",
       mode: (["scalp", "day", "swing"] as const)[Math.floor(rnd() * 3)],
@@ -290,12 +352,13 @@ export async function seedDemoTrades(api: JournalAPI, n = 24): Promise<void> {
     const symbol = DEMO_SYMBOLS[i % DEMO_SYMBOLS.length];
     const entry = DEMO_BASE[symbol] * 1.01;
     await api.createTrade({
+      journalId: jid,
       entryDate: today.toISOString().slice(0, 10),
       entryTime: "10:30",
       exitDate: null,
       exitTime: null,
       symbol,
-      exchange: "Binance",
+      exchange: defaultExchange,
       marketType: "futures",
       direction: i === 0 ? "long" : "short",
       mode: "day",

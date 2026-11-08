@@ -95,6 +95,7 @@ describe("durationMinutesOf", () => {
 function makeTrade(patch: Partial<Trade>): Trade {
   return {
     id: "t1",
+    journalId: "j1",
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     entryDate: "2026-01-01",
@@ -187,5 +188,9 @@ describe("per-trade risk percent", () => {
     // 0.8% -> 80 USD -> qty 0.08
     const risk2 = riskUsdFromPercent(10_000, effectiveRiskPercent(0.8, 1));
     expect(suggestedQuantityOf(risk2, 67000, 66000)).toBeCloseTo(0.08);
+    // 0.25% -> 25 USD -> qty 0.025
+    const risk3 = riskUsdFromPercent(10_000, effectiveRiskPercent(0.25, 1));
+    expect(risk3).toBe(25);
+    expect(suggestedQuantityOf(risk3, 67000, 66000)).toBeCloseTo(0.025);
   });
 });

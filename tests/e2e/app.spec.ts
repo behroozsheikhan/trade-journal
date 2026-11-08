@@ -4,17 +4,56 @@ import { expect, test } from "@playwright/test";
 // Without the Electron preload, the app automatically uses the localStorage
 // mock implementing the same JournalAPI contract — so they are fully headless.
 
-test.beforeEach(async ({ page }) => {
+/** Fresh state, then enter the (single, auto-created) default journal. */
+async function enterDefaultJournal(page: import("@playwright/test").Page) {
   await page.goto("/");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
+  await page.waitForSelector('[data-testid="journals-page"]');
+  await page.getByTestId("journal-card").first().click();
   await page.waitForSelector('[data-testid="dashboard"]');
+}
+
+test.beforeEach(async ({ page }) => {
+  await enterDefaultJournal(page);
+});
+
+test("journal picker is the first screen and shows card stats", async ({ page }) => {
+  await page.evaluate(() => window.__TJ__?.seedDemo(20));
+  await page.goto("/");
+  await page.waitForSelector('[data-testid="journals-page"]');
+  await expect(page.getByTestId("journal-card").first()).toBeVisible();
+  await expect(page.getByTestId("journal-stat-count").first()).toContainText("22"); // 20 closed + 2 open
+  await expect(page.getByTestId("journal-stat-pnl").first()).toBeVisible();
+  await expect(page.getByTestId("journal-stat-winrate").first()).toContainText("%");
+});
+
+test("multiple journals are independent workspaces", async ({ page }) => {
+  await page.evaluate(() => window.__TJ__?.seedDemo(8)); // into the default journal
+  await page.goto("/");
+  await page.waitForSelector('[data-testid="journals-page"]');
+  // create a second journal
+  await page.getByTestId("new-journal-input").fill("بک‌تست استراتژی");
+  await page.getByTestId("btn-create-journal").click();
+  await expect(page.getByTestId("journal-card")).toHaveCount(2);
+  // enter the second (empty) journal -> empty dashboard
+  await page.getByTestId("journal-card").nth(1).click();
+  await page.waitForSelector('[data-testid="dashboard"]');
+  await expect(page.getByTestId("empty-state")).toBeVisible();
+  // back to picker, enter the first journal -> stats are there
+  await page.goto("/");
+  await page.getByTestId("journal-card").first().click();
+  await page.waitForSelector('[data-testid="stat-net-pnl"]');
+  await expect(page.getByTestId("stat-win-rate")).toContainText("%");
+  await expect(page.getByTestId("open-trades-banner")).toContainText("2");
 });
 
 test("dashboard shows empty state and seeds demo data", async ({ page }) => {
   await expect(page.getByTestId("empty-state")).toBeVisible();
   await page.evaluate(() => window.__TJ__?.seedDemo(20));
-  await page.reload();
+  await page.goto("/");
+  await page.waitForSelector('[data-testid="journals-page"]');
+  await page.getByTestId("journal-card").first().click();
   await page.waitForSelector('[data-testid="equity-chart"]');
   await expect(page.getByTestId("stat-win-rate")).toContainText("%");
   await expect(page.getByTestId("stat-expectancy")).toBeVisible();
@@ -33,7 +72,12 @@ test("full flow: create trade -> list -> close -> dashboard stats", async ({ pag
   await page.getByTestId("field-entry-price").fill("67000");
   await page.getByTestId("field-sl").fill("66000");
   await page.getByTestId("field-tp1").fill("69000");
-  // per-trade risk: pick 0.5% and let the app suggest the size -> 10000*0.005/1000 = 0.05
+  // per-trade risk: 0.25% chip -> 10000*0.0025/1000 = 0.025
+  await page.getByTestId("risk-chip-0.25").click();
+  await expect(page.getByTestId("calc-risk-percent")).toContainText("0.25%");
+  await page.getByTestId("btn-suggest-qty").click();
+  await expect(page.getByTestId("field-quantity")).toHaveValue("0.025");
+  // 0.5% chip -> 0.05
   await page.getByTestId("risk-chip-0.5").click();
   await expect(page.getByTestId("calc-risk-percent")).toContainText("0.5%");
   await page.getByTestId("btn-suggest-qty").click();
@@ -105,11 +149,45 @@ test("settings persist", async ({ page }) => {
   await page.getByTestId("set-currency").fill("USD");
   await page.getByTestId("btn-save-settings").click();
   await expect(page.getByTestId("toast-ok")).toBeVisible();
-  await page.reload();
+  await page.goto("/"); // reload would keep the #/settings hash
+  await page.waitForSelector('[data-testid="journals-page"]');
+  await page.getByTestId("journal-card").first().click();
   await page.getByTestId("nav-settings").click();
   await page.waitForSelector('[data-testid="set-balance"]');
   await expect(page.getByTestId("set-balance")).toHaveValue("25000");
   await expect(page.getByTestId("set-currency")).toHaveValue("USD");
+});
+
+test("setups and exchanges are manageable from settings", async ({ page }) => {
+  await page.getByTestId("nav-settings").click();
+  await page.waitForSelector('[data-testid="settings-page"]');
+  // add a setup (appended as the last row)
+  await page.getByTestId("setup-new-input").fill("scalp-25m");
+  await page.getByTestId("btn-add-setup").click();
+  const setupRows = page.locator('[data-testid="manager-setups"] [data-testid^="setup-row-"]');
+  const setupCount = await setupRows.count();
+  await expect(page.getByTestId(`setup-row-${setupCount - 1}`)).toContainText("scalp-25m");
+  // disable the first setup
+  await page.getByTestId("setup-toggle-0").click();
+  await expect(page.getByTestId("setup-toggle-0")).not.toBeChecked();
+  // add an exchange and delete it again
+  await page.getByTestId("exchange-new-input").fill("MEXC");
+  await page.getByTestId("btn-add-exchange").click();
+  const exRows = page.locator('[data-testid="manager-exchanges"] [data-testid^="exchange-row-"]');
+  const exCount = await exRows.count();
+  await expect(page.getByTestId(`exchange-row-${exCount - 1}`)).toContainText("MEXC");
+  await page.getByTestId(`exchange-delete-${exCount - 1}`).click();
+  await expect(exRows).toHaveCount(exCount - 1);
+  // persist
+  await page.getByTestId("btn-save-settings").click();
+  await expect(page.getByTestId("toast-ok")).toBeVisible();
+  await page.goto("/"); // reload would keep the #/settings hash
+  await page.waitForSelector('[data-testid="journals-page"]');
+  await page.getByTestId("journal-card").first().click();
+  await page.getByTestId("nav-settings").click();
+  await page.waitForSelector('[data-testid="manager-setups"]');
+  await expect(page.getByTestId(`setup-row-${setupCount - 1}`)).toContainText("scalp-25m");
+  await expect(page.getByTestId("setup-toggle-0")).not.toBeChecked();
 });
 
 test("export produces a downloadable JSON in browser mode", async ({ page }) => {

@@ -2,7 +2,7 @@
 // `electron/preload.ts` implements it over ipcRenderer; `src/mockApi.ts`
 // implements the same interface with localStorage for browser/e2e runs.
 
-import type { AppInfo, ExportFormat, ImageRef, Settings, Trade, TradeFilters, TradeInput } from "./types";
+import type { AppInfo, ExportFormat, ImageRef, Journal, Settings, Trade, TradeFilters, TradeInput } from "./types";
 
 export const IPC_CHANNELS = {
   tradesList: "trades:list",
@@ -20,6 +20,10 @@ export const IPC_CHANNELS = {
   dataImportString: "data:importString",
   dataBackup: "data:backup",
   appInfo: "app:info",
+  journalsList: "journals:list",
+  journalsCreate: "journals:create",
+  journalsUpdate: "journals:update",
+  journalsDelete: "journals:delete",
 } as const;
 
 export interface ExportResult {
@@ -36,6 +40,12 @@ export interface ImportResult {
 }
 
 export interface JournalAPI {
+  // journals = independent workspaces; trades belong to exactly one
+  listJournals(): Promise<Journal[]>;
+  createJournal(name: string): Promise<Journal>;
+  updateJournal(id: string, patch: Partial<Pick<Journal, "name">>): Promise<Journal>;
+  deleteJournal(id: string): Promise<void>;
+
   listTrades(filters?: TradeFilters): Promise<Trade[]>;
   getTrade(id: string): Promise<Trade | null>;
   createTrade(input: TradeInput): Promise<Trade>;

@@ -1,8 +1,13 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS, type JournalAPI } from "../shared/api";
-import type { ExportFormat, ImageRef, Settings, Trade, TradeFilters, TradeInput } from "../shared/types";
+import type { ExportFormat, ImageRef, Journal, Settings, Trade, TradeFilters, TradeInput } from "../shared/types";
 
 const api: JournalAPI = {
+  listJournals: () => ipcRenderer.invoke(IPC_CHANNELS.journalsList),
+  createJournal: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.journalsCreate, name),
+  updateJournal: (id: string, patch: Partial<Pick<Journal, "name">>) => ipcRenderer.invoke(IPC_CHANNELS.journalsUpdate, { id, patch }),
+  deleteJournal: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.journalsDelete, id),
+
   listTrades: (filters?: TradeFilters) => ipcRenderer.invoke(IPC_CHANNELS.tradesList, filters),
   getTrade: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.tradesGet, id),
   createTrade: (input: TradeInput) => ipcRenderer.invoke(IPC_CHANNELS.tradesCreate, input),

@@ -7,6 +7,23 @@ All data (SQLite + screenshots) stays on your own machine.
 
 ---
 
+## 🗂 Multi-journal workspaces (v1.1.0)
+
+The first screen is a **journal picker**: each journal is an independent workspace
+(e.g. "real day trading" vs. "strategy backtest") shown as a square card with its
+name, trade count, net P&L, win rate and open trades. Click a card to enter it —
+inside you get Dashboard / Trades / New trade scoped to that journal. Settings are
+app-wide. Journals can be created, renamed and deleted (delete cascades its trades
+and screenshots); at least one journal always remains. Old single-journal databases
+are migrated automatically (existing trades move into the default journal
+"ژورنال اصلی").
+
+Also in v1.1.0:
+- **Setup & Exchange lists are managed from Settings** — add, remove or disable
+  entries; enabled entries appear in the trade-form dropdowns (plus a free-text
+  fallback). An exchange filter was added to the trades page.
+- **Per-trade risk chips now include 0.25%** (0.25% / 0.5% / 1% / 2% / default).
+
 ## Features
 
 - **Complete trade record** — everything a professional journal needs:

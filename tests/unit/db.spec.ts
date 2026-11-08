@@ -7,9 +7,11 @@ import type { TradeInput } from "../../shared/types";
 
 let dir: string;
 let db: JournalDB;
+let JID: string;
 
 function sampleInput(over: Partial<TradeInput> = {}): TradeInput {
   return {
+    journalId: JID,
     entryDate: "2026-03-01",
     entryTime: "10:00",
     exitDate: "2026-03-01",
@@ -57,6 +59,8 @@ function sampleInput(over: Partial<TradeInput> = {}): TradeInput {
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "tj-db-test-"));
   db = new JournalDB(path.join(dir, "test.db"));
+  // the constructor guarantees one default journal; add a second named one
+  JID = db.createJournal("main").id;
 });
 
 afterEach(() => {
@@ -108,6 +112,9 @@ describe("JournalDB settings", () => {
   it("returns defaults then persists patches", () => {
     const s0 = db.getSettings();
     expect(s0.baseCurrency).toBe("USDT");
+    expect(s0.setups.length).toBeGreaterThan(0);
+    expect(s0.exchanges.length).toBeGreaterThan(0);
+    expect(s0.setups.every((x) => x.enabled)).toBe(true);
     const s1 = db.setSettings({ accountBalance: 5000, theme: "light" });
     expect(s1.accountBalance).toBe(5000);
     expect(s1.theme).toBe("light");
@@ -171,5 +178,61 @@ describe("JournalDB export / import / backup", () => {
   it("rejects invalid import JSON", () => {
     expect(() => db.importJSON("not json")).toThrow();
     expect(() => db.importJSON('{"foo": 1}')).toThrow(/trades/);
+  });
+});
+
+describe("JournalDB journals (multi-workspace)", () => {
+  it("constructor guarantees a default journal and legacy trades get attached to it", () => {
+    const journals = db.listJournals();
+    expect(journals.length).toBeGreaterThanOrEqual(2); // default + "main"
+    const legacy = db.createTrade(sampleInput({ journalId: "" }));
+    expect(db.getTrade(legacy.id)?.journalId).toBe(journals[0].id);
+  });
+
+  it("creates / renames / lists journals", () => {
+    const j = db.createJournal("backtest");
+    expect(db.listJournals().some((x) => x.id === j.id)).toBe(true);
+    const renamed = db.updateJournal(j.id, { name: "بک‌تست" });
+    expect(renamed.name).toBe("بک‌تست");
+    expect(db.getJournal(j.id)?.name).toBe("بك‌تست".replace("ك", "ک"));
+  });
+
+  it("scopes listTrades by journalId", () => {
+    const j2 = db.createJournal("second");
+    db.createTrade(sampleInput({ symbol: "ETH/USDT", journalId: j2.id }));
+    db.createTrade(sampleInput({ symbol: "BTC/USDT" }));
+    expect(db.listTrades({ journalId: JID })).toHaveLength(1);
+    expect(db.listTrades({ journalId: j2.id })).toHaveLength(1);
+    expect(db.listTrades({ journalId: j2.id })[0].symbol).toBe("ETH/USDT");
+    expect(db.listTrades({ exchange: "Binance", journalId: JID })).toHaveLength(1);
+    expect(db.listTrades({ exchange: "Bybit", journalId: JID })).toHaveLength(0);
+  });
+
+  it("deleteJournal cascades trades and images", () => {
+    const j2 = db.createJournal("doomed");
+    const t = db.createTrade(sampleInput({ journalId: j2.id }));
+    const img = db.saveImage(t.id, "x.png", new Uint8Array([1]));
+    expect(fs.existsSync(path.join(db.imagesDir, `${img.id}.png`))).toBe(true);
+    db.deleteJournal(j2.id);
+    expect(db.getJournal(j2.id)).toBeNull();
+    expect(db.getTrade(t.id)).toBeNull();
+    expect(db.getImage(img.id)).toBeNull();
+    expect(fs.existsSync(path.join(db.imagesDir, `${img.id}.png`))).toBe(false);
+    // never left without a journal
+    expect(db.listJournals().length).toBeGreaterThan(0);
+  });
+
+  it("export includes journals and import restores them", () => {
+    const j2 = db.createJournal("exported");
+    db.createTrade(sampleInput({ journalId: j2.id }));
+    const json = db.exportJSON();
+    const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), "tj-db-test2-"));
+    const db2 = new JournalDB(path.join(dir2, "test2.db"));
+    const res = db2.importJSON(json);
+    expect(res.imported).toBe(1);
+    expect(db2.listJournals().some((j) => j.id === j2.id)).toBe(true);
+    expect(db2.listTrades({ journalId: j2.id })).toHaveLength(1);
+    db2.close();
+    fs.rmSync(dir2, { recursive: true, force: true });
   });
 });

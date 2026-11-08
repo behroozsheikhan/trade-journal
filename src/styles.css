@@ -340,3 +340,49 @@ body {
 
 .wr-bar { display: inline-block; width: 60px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; vertical-align: middle; }
 .wr-bar span { display: block; height: 100%; background: var(--pos); }
+
+/* ---------- journal picker (multi-workspace) ---------- */
+.journal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin-top: 8px; }
+.journal-card {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  padding: 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+  text-align: start;
+  color: var(--text);
+  font: inherit;
+}
+.journal-card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+.journal-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.journal-card-top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.journal-card-name { font-weight: 800; font-size: 17px; overflow: hidden; text-overflow: ellipsis; }
+.journal-card-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.journal-card-stats { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.journal-stat { display: flex; flex-direction: column; gap: 2px; }
+.journal-stat b { font-size: 15px; }
+.journal-card-badge {
+  position: absolute; top: 10px; inset-inline-end: 44px;
+  font-size: 11px; font-weight: 700; color: var(--accent);
+  background: var(--accent-soft); border-radius: 999px; padding: 2px 8px;
+}
+.journal-card-new {
+  border-style: dashed; align-items: center; justify-content: center; gap: 6px;
+  color: var(--muted); font-weight: 700;
+}
+.journal-card-new:hover { color: var(--accent); }
+.journal-card-plus { font-size: 30px; line-height: 1; }
+
+/* ---------- settings list manager (setups / exchanges) ---------- */
+.list-manager .list-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 2px; border-bottom: 1px solid var(--border);
+}
+.list-row-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.list-row-add { border-bottom: none; padding-top: 10px; }
+.list-row-add .input { flex: 1; }

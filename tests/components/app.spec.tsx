@@ -13,13 +13,21 @@ beforeEach(() => {
 });
 
 describe("App (jsdom, mock API)", () => {
-  it("renders the dashboard with seeded trades and correct stats", async () => {
+  it("shows journal cards first, then the dashboard of the clicked journal", async () => {
     await seedDemoTrades(getApi(), 12);
     render(
       <MemoryRouter initialEntries={["/"]}>
         <App />
       </MemoryRouter>,
     );
+    // first screen = journal picker with a card
+    const card = await screen.findByTestId("journal-card");
+    expect(screen.getByTestId("journals-page")).toBeInTheDocument();
+    expect(screen.getByTestId("journal-card-name").textContent).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId("journal-stat-count").textContent).toBe("14")); // 12 closed + 2 open
+    // click the card -> dashboard of that journal
+    const user = userEvent.setup();
+    await user.click(card);
     await waitFor(() => expect(screen.getByTestId("stat-net-pnl")).toBeInTheDocument());
     // 12 closed + 2 open seeded
     expect(screen.getByTestId("stat-win-rate").textContent).toMatch(/%/);
