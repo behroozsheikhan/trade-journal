@@ -84,18 +84,30 @@ jobs:
           curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o "$cache\SHASUMS256.txt" "$base/SHASUMS256.txt"
       - name: Node prefix for offline native builds
         shell: bash
-        run: echo "npm_config_nodedir=$(dirname "$(dirname "$(readlink -f "$(which node)")")")" >> "$GITHUB_ENV"
+        run: |
+          prefix="$(dirname "$(dirname "$(readlink -f "$(which node)")")")"
+          winprefix="$(cygpath -w "$prefix" 2>/dev/null || echo "$prefix")"
+          echo "npm_config_nodedir=$winprefix" >> "$GITHUB_ENV"
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund || npm ci --no-audit --no-fund
+        shell: pwsh
+        run: |
+          $ok = $false
+          for ($i = 1; $i -le 3; $i++) {
+            npm ci --no-audit --no-fund
+            if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+            Write-Host "::warning::npm ci attempt $i failed; retrying in 30s"
+            Start-Sleep -Seconds 30
+          }
+          if (-not $ok) { exit 1 }
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - name: Diagnose install failure
         if: failure()
         shell: pwsh
         run: |
-          Get-ChildItem "$HOME/.npm/_logs/*.log" | ForEach-Object {
+          Get-ChildItem "$env:USERPROFILE\.npm\_logs\*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 2 | ForEach-Object {
             Write-Host "::error::--- $($_.FullName)"
-            Select-String -Path $_.FullName -Pattern "ERR!|error|404|403|401|ETIMEDOUT|ECONNRESET|socket|ENOTFOUND" | Select-Object -Last 40 | ForEach-Object { Write-Host "::error::$($_.Line)" }
+            Get-Content $_.FullName -Tail 70 | ForEach-Object { Write-Host "::error::$_" }
           }
       - name: Build app and installer (retries)
         shell: pwsh
