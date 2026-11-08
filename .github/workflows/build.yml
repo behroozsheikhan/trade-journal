@@ -24,10 +24,20 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Node prefix for offline native builds
+        run: echo "npm_config_nodedir=$(dirname "$(dirname "$(readlink -f "$(which node)")")")" >> "$GITHUB_ENV"
       - name: Install dependencies (Node ABI for Vitest)
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund || npm ci --no-audit --no-fund
         env:
           TJ_ELECTRON_REBUILD: "0"
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - name: Diagnose install failure
+        if: failure()
+        run: |
+          for f in "$HOME"/.npm/_logs/*.log; do
+            echo "::error::--- $f"
+            grep -aiE "ERR!|error|404|403|401|ETIMEDOUT|ECONNRESET|socket|ENOTFOUND" "$f" | tail -40 | sed 's/^/::error::/'
+          done
       - name: Install Playwright chromium
         run: npx playwright install --with-deps chromium
       - name: Typecheck
@@ -52,8 +62,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Cache Electron dist zip
+        uses: actions/cache@v4
+        with:
+          path: ~\.cache\electron
+          key: electron-v33.4.11-win-x64
+          restore-keys: electron-v33.4.11-win-
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund || npm ci --no-audit --no-fund
+      - name: Diagnose install failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-ChildItem "$HOME/.npm/_logs/*.log" | ForEach-Object {
+            Write-Host "::error::--- $($_.FullName)"
+            Select-String -Path $_.FullName -Pattern "ERR!|error|404|403|401|ETIMEDOUT|ECONNRESET|socket|ENOTFOUND" | Select-Object -Last 40 | ForEach-Object { Write-Host "::error::$($_.Line)" }
+          }
       - name: Build app and installer
         shell: pwsh
         run: |
@@ -97,7 +121,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --no-audit --no-fund
+      - name: Cache Electron dist zip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: electron-v33.4.11-linux-x64
+          restore-keys: electron-v33.4.11-linux-
+      - name: Node prefix for offline native builds
+        run: echo "npm_config_nodedir=$(dirname "$(dirname "$(readlink -f "$(which node)")")")" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund || npm ci --no-audit --no-fund
+      - name: Diagnose install failure
+        if: failure()
+        run: |
+          for f in "$HOME"/.npm/_logs/*.log; do
+            echo "::error::--- $f"
+            grep -aiE "ERR!|error|404|403|401|ETIMEDOUT|ECONNRESET|socket|ENOTFOUND" "$f" | tail -40 | sed 's/^/::error::/'
+          done
       - run: npm run build
       - run: npx electron-builder --config electron-builder.yml --linux --publish never
       - uses: actions/upload-artifact@v4
