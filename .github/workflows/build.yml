@@ -108,22 +108,26 @@ jobs:
       - name: Place better-sqlite3 Electron-ABI prebuild
         shell: pwsh
         run: |
-          # Electron 33.x => NODE_MODULE_VERSION 130; prebuilt from GitHub releases (github.com is reachable).
-          $abi = 130
-          $url = "https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-electron-v$abi-win32-x64.tar.gz"
-          $tgz = Join-Path $env:TEMP "bs3-prebuild.tar.gz"
-          curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o $tgz $url
-          Write-Host "prebuild curl exit=$LASTEXITCODE"
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::prebuild download failed"; exit 1 }
-          tar -xzf $tgz -C node_modules/better-sqlite3
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::tar extract failed"; exit 1 }
-          $dest = "node_modules/better-sqlite3/build/Release"
-          New-Item -ItemType Directory -Force -Path $dest | Out-Null
-          $f = Get-ChildItem -Recurse node_modules/better-sqlite3 -Filter better_sqlite3.node | Select-Object -First 1
-          if (-not $f) { Write-Host "::error::no better_sqlite3.node found in extracted prebuild"; exit 1 }
-          Copy-Item $f.FullName (Join-Path $dest "better_sqlite3.node") -Force
-          if (-not (Test-Path (Join-Path $dest "better_sqlite3.node"))) { Write-Host "::error::prebuild placement failed"; exit 1 }
-          Write-Host "::notice::prebuild placed at $dest" 
+          try {
+            # Electron 33.x => NODE_MODULE_VERSION 130; prebuilt from GitHub releases.
+            $abi = 130
+            $url = "https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-electron-v$abi-win32-x64.tar.gz"
+            $tgz = Join-Path $env:TEMP "bs3-prebuild.tar.gz"
+            curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o $tgz -w "http=%{http_code}`n" $url
+            if ($LASTEXITCODE -ne 0) { throw "curl exit $LASTEXITCODE" }
+            tar -xzf $tgz -C node_modules/better-sqlite3
+            if ($LASTEXITCODE -ne 0) { throw "tar extract exit $LASTEXITCODE" }
+            $dest = "node_modules/better-sqlite3/build/Release"
+            New-Item -ItemType Directory -Force -Path $dest | Out-Null
+            $f = Get-ChildItem -Recurse node_modules/better-sqlite3 -Filter better_sqlite3.node | Select-Object -First 1
+            if (-not $f) { throw "no better_sqlite3.node in extracted prebuild" }
+            Copy-Item $f.FullName (Join-Path $dest "better_sqlite3.node") -Force
+            if (-not (Test-Path (Join-Path $dest "better_sqlite3.node"))) { throw "placement failed" }
+            Write-Host "prebuild placed OK"
+          } catch {
+            Write-Host "::error::prebuild step failed: $_"
+            exit 1
+          }
       - name: Diagnose install failure
         if: failure()
         shell: pwsh
@@ -226,21 +230,26 @@ jobs:
           TJ_ELECTRON_REBUILD: "0"
       - name: Place better-sqlite3 Electron-ABI prebuild
         run: |
-          exec > >(tee /tmp/prebuild.log) 2>&1
-          trap 'echo "::error::--- prebuild step output ---"; tail -30 /tmp/prebuild.log | sed "s/^/::error::/"' EXIT
-          abi=130  # Electron 33.x => NODE_MODULE_VERSION 130
-          url="https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-electron-v${abi}-linux-x64.tar.gz"
-          code=$(curl -L --retry 6 --retry-all-errors --retry-delay 15 -o /tmp/bs3.tar.gz -w "%{http_code}" "$url") || code="curl-exit-$?"
-          echo "prebuild download http=$code"
-          [ "$code" = "200" ] || { echo "::error::prebuild download failed http=$code"; exit 1; }
-          tar -xzf /tmp/bs3.tar.gz -C node_modules/better-sqlite3 || { echo "::error::tar extract failed"; exit 1; }
-          mkdir -p node_modules/better-sqlite3/build/Release
-          f=$(find node_modules/better-sqlite3 -name better_sqlite3.node | head -1)
-          [ -n "$f" ] || { echo "::error::no better_sqlite3.node in extracted prebuild"; exit 1; }
-          cp "$f" node_modules/better-sqlite3/build/Release/better_sqlite3.node
-          test -f node_modules/better-sqlite3/build/Release/better_sqlite3.node || { echo "::error::placement failed"; exit 1; }
-          echo "prebuild placed OK"
-          trap - EXIT
+          log=/tmp/prebuild.log
+          if (
+            set -ex
+            abi=130  # Electron 33.x => NODE_MODULE_VERSION 130
+            url="https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-electron-v${abi}-linux-x64.tar.gz"
+            curl -sS -L --retry 6 --retry-all-errors --retry-delay 15 -o /tmp/bs3.tar.gz -w "http=%{http_code}\n" "$url"
+            test -s /tmp/bs3.tar.gz
+            tar -xzf /tmp/bs3.tar.gz -C node_modules/better-sqlite3
+            mkdir -p node_modules/better-sqlite3/build/Release
+            f=$(find node_modules/better-sqlite3 -name better_sqlite3.node | head -1)
+            test -n "$f"
+            cp "$f" node_modules/better-sqlite3/build/Release/better_sqlite3.node
+            test -f node_modules/better-sqlite3/build/Release/better_sqlite3.node
+          ) > "$log" 2>&1; then
+            echo "prebuild placed OK"
+          else
+            echo "::error::--- prebuild step failed; full output: ---"
+            sed 's/^/::error::/' "$log" | tail -60
+            exit 1
+          fi
       - name: Diagnose install failure
         if: failure()
         run: |
