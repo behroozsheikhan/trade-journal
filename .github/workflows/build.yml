@@ -113,7 +113,7 @@ jobs:
         shell: pwsh
         run: |
           if (Test-Path build.log) {
-            Select-String -Path build.log -Pattern "error|⨯|ERR!|404|403|504|ETIMEDOUT|ECONNRESET|ENOTFOUND|failed" -CaseSensitive:$false | Select-Object -Last 40 | ForEach-Object { Write-Host "::error::$($_.Line)" }
+            Get-Content build.log -Tail 80 | ForEach-Object { Write-Host "::error::$_" }
           }
       - uses: actions/upload-artifact@v4
         if: always()
@@ -200,7 +200,7 @@ jobs:
       - name: Diagnose builder failure
         if: failure()
         run: |
-          grep -aiE "error|⨯|ERR!|404|403|504|ETIMEDOUT|ECONNRESET|ENOTFOUND|failed" builder.log | tail -40 | sed 's/^/::error::/'
+          tail -80 builder.log | sed 's/^/::error::/'
       - uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
