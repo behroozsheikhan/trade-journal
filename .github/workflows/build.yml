@@ -31,7 +31,13 @@ jobs:
       - name: Install dependencies (Node ABI for Vitest)
         # Electron binary is not needed here (Playwright uses its own Chromium);
         # skipping it avoids the big github-release download in this job.
-        run: npm ci --no-audit --no-fund || npm ci --no-audit --no-fund
+        run: |
+          for i in 1 2 3 4; do
+            npm ci --no-audit --no-fund --prefer-online --cache "$RUNNER_TEMP/npmcache-$i" && exit 0
+            echo "::warning::npm ci attempt $i failed; retrying with a fresh cache in 20s"
+            sleep 20
+          done
+          exit 1
         env:
           TJ_ELECTRON_REBUILD: "0"
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
@@ -89,11 +95,11 @@ jobs:
           # must NOT leak into electron-builder's @electron/rebuild node-gyp calls.
           $env:npm_config_nodedir = Split-Path -Parent (Split-Path -Parent (Get-Command node).Source)
           $ok = $false
-          for ($i = 1; $i -le 3; $i++) {
-            npm ci --no-audit --no-fund
+          for ($i = 1; $i -le 4; $i++) {
+            npm ci --no-audit --no-fund --prefer-online --cache (Join-Path $env:RUNNER_TEMP "npmcache$i")
             if ($LASTEXITCODE -eq 0) { $ok = $true; break }
-            Write-Host "::warning::npm ci attempt $i failed; retrying in 30s"
-            Start-Sleep -Seconds 30
+            Write-Host "::warning::npm ci attempt $i failed; retrying with a fresh cache in 20s"
+            Start-Sleep -Seconds 20
           }
           if (-not $ok) { exit 1 }
         env:
@@ -204,7 +210,12 @@ jobs:
           curl -L --retry 6 --retry-all-errors --retry-delay 15 -o ~/.cache/electron/SHASUMS256.txt "$base/SHASUMS256.txt"
       - run: |
           export npm_config_nodedir="$(dirname "$(dirname "$(readlink -f "$(which node)")")")"
-          npm ci --no-audit --no-fund || npm ci --no-audit --no-fund
+          for i in 1 2 3 4; do
+            npm ci --no-audit --no-fund --prefer-online --cache "$RUNNER_TEMP/npmcache-$i" && exit 0
+            echo "::warning::npm ci attempt $i failed; retrying with a fresh cache in 20s"
+            sleep 20
+          done
+          exit 1
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
           TJ_ELECTRON_REBUILD: "0"
