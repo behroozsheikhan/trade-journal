@@ -14,6 +14,9 @@ on:
 permissions:
   contents: write
 
+env:
+  ELECTRON_VERSION: 33.4.11
+
 jobs:
   test:
     name: Unit + E2E tests (headless Linux)
@@ -26,6 +29,8 @@ jobs:
       - name: Node prefix for offline native builds
         run: echo "npm_config_nodedir=$(dirname "$(dirname "$(readlink -f "$(which node)")")")" >> "$GITHUB_ENV"
       - name: Install dependencies (Node ABI for Vitest)
+        # Electron binary is not needed here (Playwright uses its own Chromium);
+        # skipping it avoids the big github-release download in this job.
         run: npm ci --no-audit --no-fund || npm ci --no-audit --no-fund
         env:
           TJ_ELECTRON_REBUILD: "0"
@@ -46,8 +51,8 @@ jobs:
       - name: UI tests (Playwright, headless)
         run: npm run test:e2e
       - uses: actions/upload-artifact@v4
-        continue-on-error: true
         if: always()
+        continue-on-error: true
         with:
           name: playwright-report
           path: playwright-report/
@@ -61,12 +66,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Cache Electron dist zip
+      - name: Cache Electron dist + builder cache
         uses: actions/cache@v4
         with:
-          path: ~\.cache\electron
-          key: electron-v33.4.11-win-x64
-          restore-keys: electron-v33.4.11-win-
+          path: |
+            %LOCALAPPDATA%\electron\Cache
+            %LOCALAPPDATA%\electron-builder\Cache
+          key: electron-${{ env.ELECTRON_VERSION }}-win-x64
+          restore-keys: electron-${{ env.ELECTRON_VERSION }}-win-
+      - name: Pre-download Electron dist (retries)
+        shell: pwsh
+        run: |
+          $cache = "$env:LOCALAPPDATA\electron\Cache"
+          New-Item -ItemType Directory -Force -Path $cache | Out-Null
+          $base = "https://github.com/electron/electron/releases/download/v$env:ELECTRON_VERSION"
+          curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o "$cache\electron-v$env:ELECTRON_VERSION-win32-x64.zip" "$base/electron-v$env:ELECTRON_VERSION-win32-x64.zip"
+          curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o "$cache\SHASUMS256.txt" "$base/SHASUMS256.txt"
       - name: Node prefix for offline native builds
         shell: bash
         run: echo "npm_config_nodedir=$(dirname "$(dirname "$(readlink -f "$(which node)")")")" >> "$GITHUB_ENV"
@@ -82,21 +97,27 @@ jobs:
             Write-Host "::error::--- $($_.FullName)"
             Select-String -Path $_.FullName -Pattern "ERR!|error|404|403|401|ETIMEDOUT|ECONNRESET|socket|ENOTFOUND" | Select-Object -Last 40 | ForEach-Object { Write-Host "::error::$($_.Line)" }
           }
-      - name: Build app and installer
+      - name: Build app and installer (retries)
         shell: pwsh
         run: |
-          npm run dist:win 2>&1 | Tee-Object -FilePath build.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ok = $false
+          for ($i = 1; $i -le 4; $i++) {
+            npm run dist:win 2>&1 | Tee-Object -FilePath build.log
+            if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+            Write-Host "::warning::dist:win attempt $i failed; retrying in 20s"
+            Start-Sleep -Seconds 20
+          }
+          if (-not $ok) { exit 1 }
       - name: Diagnose build failure
         if: failure()
         shell: pwsh
         run: |
           if (Test-Path build.log) {
-            Select-String -Path build.log -Pattern "error|⨯|ERR!|404|403|ETIMEDOUT|ECONNRESET|ENOTFOUND|failed" -CaseSensitive:$false | Select-Object -Last 40 | ForEach-Object { Write-Host "::error::$($_.Line)" }
+            Select-String -Path build.log -Pattern "error|⨯|ERR!|404|403|504|ETIMEDOUT|ECONNRESET|ENOTFOUND|failed" -CaseSensitive:$false | Select-Object -Last 40 | ForEach-Object { Write-Host "::error::$($_.Line)" }
           }
       - uses: actions/upload-artifact@v4
-        continue-on-error: true
         if: always()
+        continue-on-error: true
         with:
           name: windows-build-log
           path: build.log
@@ -113,13 +134,19 @@ jobs:
         if: github.event_name == 'release'
         shell: pwsh
         run: |
-          npx electron-builder --config electron-builder.yml --win --publish always 2>&1 | Tee-Object -FilePath publish.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ok = $false
+          for ($i = 1; $i -le 3; $i++) {
+            npx electron-builder --config electron-builder.yml --win --publish always 2>&1 | Tee-Object -FilePath publish.log
+            if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+            Write-Host "::warning::publish attempt $i failed; retrying in 20s"
+            Start-Sleep -Seconds 20
+          }
+          if (-not $ok) { exit 1 }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
-        continue-on-error: true
         if: always()
+        continue-on-error: true
         with:
           name: windows-publish-log
           path: publish.log
@@ -134,12 +161,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Cache Electron dist zip
+      - name: Cache Electron dist + builder cache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/electron
-          key: electron-v33.4.11-linux-x64
-          restore-keys: electron-v33.4.11-linux-
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-${{ env.ELECTRON_VERSION }}-linux-x64
+          restore-keys: electron-${{ env.ELECTRON_VERSION }}-linux-
+      - name: Pre-download Electron dist (retries)
+        run: |
+          mkdir -p ~/.cache/electron
+          base="https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}"
+          curl -L --retry 6 --retry-all-errors --retry-delay 15 -o ~/.cache/electron/electron-v${ELECTRON_VERSION}-linux-x64.zip "$base/electron-v${ELECTRON_VERSION}-linux-x64.zip"
+          curl -L --retry 6 --retry-all-errors --retry-delay 15 -o ~/.cache/electron/SHASUMS256.txt "$base/SHASUMS256.txt"
       - name: Node prefix for offline native builds
         run: echo "npm_config_nodedir=$(dirname "$(dirname "$(readlink -f "$(which node)")")")" >> "$GITHUB_ENV"
       - run: npm ci --no-audit --no-fund || npm ci --no-audit --no-fund
@@ -153,11 +188,19 @@ jobs:
             grep -aiE "ERR!|error|404|403|401|ETIMEDOUT|ECONNRESET|socket|ENOTFOUND" "$f" | tail -40 | sed 's/^/::error::/'
           done
       - run: npm run build
-      - run: npx electron-builder --config electron-builder.yml --linux --publish never 2>&1 | tee builder.log; exit ${PIPESTATUS[0]}
+      - name: Build AppImage (retries)
+        run: |
+          set -o pipefail
+          for i in 1 2 3 4; do
+            if npx electron-builder --config electron-builder.yml --linux --publish never 2>&1 | tee builder.log; then exit 0; fi
+            echo "::warning::electron-builder attempt $i failed; retrying in 20s"
+            sleep 20
+          done
+          exit 1
       - name: Diagnose builder failure
         if: failure()
         run: |
-          grep -aiE "error|⨯|ERR!|404|403|ETIMEDOUT|ECONNRESET|ENOTFOUND|failed" builder.log | tail -40 | sed 's/^/::error::/'
+          grep -aiE "error|⨯|ERR!|404|403|504|ETIMEDOUT|ECONNRESET|ENOTFOUND|failed" builder.log | tail -40 | sed 's/^/::error::/'
       - uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
