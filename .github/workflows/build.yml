@@ -105,12 +105,14 @@ jobs:
           # Electron 33.x => NODE_MODULE_VERSION 130; prebuilt from GitHub releases (github.com is reachable).
           $abi = 130
           $url = "https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-electron-v$abi-win32-x64.tar.gz"
-          curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o "$env:TEMPs3.tar.gz" $url
-          tar -xzf "$env:TEMPs3.tar.gz" -C node_modulesetter-sqlite3
-          New-Item -ItemType Directory -Force -Path node_modulesetter-sqlite3uild\Release | Out-Null
-          $f = Get-ChildItem -Recurse node_modulesetter-sqlite3 -Filter better_sqlite3.node | Select-Object -First 1
-          Copy-Item $f.FullName node_modulesetter-sqlite3uild\Releaseetter_sqlite3.node -Force
-          if (-not (Test-Path node_modulesetter-sqlite3uild\Releaseetter_sqlite3.node)) { Write-Host "::error::prebuild placement failed"; exit 1 }
+          $tgz = Join-Path $env:TEMP "bs3-prebuild.tar.gz"
+          curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o $tgz $url
+          tar -xzf $tgz -C node_modules/better-sqlite3
+          $dest = "node_modules/better-sqlite3/build/Release"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          $f = Get-ChildItem -Recurse node_modules/better-sqlite3 -Filter better_sqlite3.node | Select-Object -First 1
+          Copy-Item $f.FullName (Join-Path $dest "better_sqlite3.node") -Force
+          if (-not (Test-Path (Join-Path $dest "better_sqlite3.node"))) { Write-Host "::error::prebuild placement failed"; exit 1 }
       - name: Diagnose install failure
         if: failure()
         shell: pwsh
