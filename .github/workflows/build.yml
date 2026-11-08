@@ -115,11 +115,14 @@ jobs:
             $tgz = Join-Path $env:TEMP "bs3-prebuild.tar.gz"
             curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o $tgz -w "http=%{http_code}`n" $url
             if ($LASTEXITCODE -ne 0) { throw "curl exit $LASTEXITCODE" }
-            tar -xzf $tgz -C node_modules/better-sqlite3
+            $xdir = Join-Path $env:TEMP "bs3-extract"
+            if (Test-Path $xdir) { Remove-Item -Recurse -Force $xdir }
+            New-Item -ItemType Directory -Force -Path $xdir | Out-Null
+            tar -xzf $tgz -C $xdir
             if ($LASTEXITCODE -ne 0) { throw "tar extract exit $LASTEXITCODE" }
             $dest = "node_modules/better-sqlite3/build/Release"
             New-Item -ItemType Directory -Force -Path $dest | Out-Null
-            $f = Get-ChildItem -Recurse node_modules/better-sqlite3 -Filter better_sqlite3.node | Select-Object -First 1
+            $f = Get-ChildItem -Recurse $xdir -Filter better_sqlite3.node | Select-Object -First 1
             if (-not $f) { throw "no better_sqlite3.node in extracted prebuild" }
             Copy-Item $f.FullName (Join-Path $dest "better_sqlite3.node") -Force
             if (-not (Test-Path (Join-Path $dest "better_sqlite3.node"))) { throw "placement failed" }
@@ -237,10 +240,11 @@ jobs:
             url="https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-electron-v${abi}-linux-x64.tar.gz"
             curl -sS -L --retry 6 --retry-all-errors --retry-delay 15 -o /tmp/bs3.tar.gz -w "http=%{http_code}\n" "$url"
             test -s /tmp/bs3.tar.gz
-            tar -xzf /tmp/bs3.tar.gz -C node_modules/better-sqlite3
-            mkdir -p node_modules/better-sqlite3/build/Release
-            f=$(find node_modules/better-sqlite3 -name better_sqlite3.node | head -1)
+            rm -rf /tmp/bs3-extract && mkdir -p /tmp/bs3-extract
+            tar -xzf /tmp/bs3.tar.gz -C /tmp/bs3-extract
+            f=$(find /tmp/bs3-extract -name better_sqlite3.node | head -1)
             test -n "$f"
+            mkdir -p node_modules/better-sqlite3/build/Release
             cp "$f" node_modules/better-sqlite3/build/Release/better_sqlite3.node
             test -f node_modules/better-sqlite3/build/Release/better_sqlite3.node
           ) > "$log" 2>&1; then
