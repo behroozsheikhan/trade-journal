@@ -112,11 +112,11 @@ jobs:
           $abi = 130
           $url = "https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-electron-v$abi-win32-x64.tar.gz"
           $tgz = Join-Path $env:TEMP "bs3-prebuild.tar.gz"
-          curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o $tgz -w "http=%{http_code} size=%{size_download}" $url
-          Write-Host "::notice::prebuild curl exit=$LASTEXITCODE"
+          curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o $tgz $url
+          Write-Host "prebuild curl exit=$LASTEXITCODE"
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::prebuild download failed"; exit 1 }
-          tar -tzf $tgz | Select-Object -First 5 | ForEach-Object { Write-Host "::notice::tgz contains $_" }
           tar -xzf $tgz -C node_modules/better-sqlite3
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::tar extract failed"; exit 1 }
           $dest = "node_modules/better-sqlite3/build/Release"
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
           $f = Get-ChildItem -Recurse node_modules/better-sqlite3 -Filter better_sqlite3.node | Select-Object -First 1
@@ -226,20 +226,20 @@ jobs:
           TJ_ELECTRON_REBUILD: "0"
       - name: Place better-sqlite3 Electron-ABI prebuild
         run: |
-          set -e
           abi=130  # Electron 33.x => NODE_MODULE_VERSION 130
           url="https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-electron-v${abi}-linux-x64.tar.gz"
           code=$(curl -L --retry 6 --retry-all-errors --retry-delay 15 -o /tmp/bs3.tar.gz -w "%{http_code}" "$url") || code="curl-exit-$?"
-          echo "::notice::prebuild download http=$code"
+          echo "prebuild download http=$code"
           if [ "$code" != "200" ]; then echo "::error::prebuild download failed http=$code"; exit 1; fi
-          tar -tzf /tmp/bs3.tar.gz | head -5 | sed 's/^/::notice::tgz /'
-          tar -xzf /tmp/bs3.tar.gz -C node_modules/better-sqlite3
+          tar -tzf /tmp/bs3.tar.gz > /tmp/tgz.list 2>/tmp/tgz.err || { echo "::error::tar -tzf failed"; cat /tmp/tgz.err; exit 1; }
+          head -5 /tmp/tgz.list
+          tar -xzf /tmp/bs3.tar.gz -C node_modules/better-sqlite3 || { echo "::error::tar extract failed"; exit 1; }
           mkdir -p node_modules/better-sqlite3/build/Release
           f=$(find node_modules/better-sqlite3 -name better_sqlite3.node | head -1)
           if [ -z "$f" ]; then echo "::error::no better_sqlite3.node in extracted prebuild"; exit 1; fi
           cp "$f" node_modules/better-sqlite3/build/Release/better_sqlite3.node
-          test -f node_modules/better-sqlite3/build/Release/better_sqlite3.node
-          echo "::notice::prebuild placed OK" 
+          test -f node_modules/better-sqlite3/build/Release/better_sqlite3.node || { echo "::error::placement failed"; exit 1; }
+          echo "prebuild placed OK" 
       - name: Diagnose install failure
         if: failure()
         run: |
