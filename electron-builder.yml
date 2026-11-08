@@ -1,0 +1,45 @@
+appId: com.arena.tradejournal
+productName: TradeJournal
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - dist-electron/**
+  - build/icon.png
+  - package.json
+  - node_modules/**
+# Native module (better-sqlite3) is shipped as an Electron-ABI prebuilt binary
+# placed into node_modules by CI/dev setup, so no node-gyp rebuild (and no
+# electronjs.org header download) is needed at package time.
+npmRebuild: false
+asar: true
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: build/icon.png
+  artifactName: "${productName}-Setup-${version}.${ext}"
+portable:
+  artifactName: "${productName}-Portable-${version}.${ext}"
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "ژورنال ترید"
+  deleteAppDataOnUninstall: false
+linux:
+  target: [AppImage]
+  category: Office
+  artifactName: "${productName}-${version}.${ext}"
+publish:
+  - provider: github
+    owner: behroozsheikhan
+    repo: trade-journal
+    releaseType: release
