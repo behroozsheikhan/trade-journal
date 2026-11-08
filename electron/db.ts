@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS trades (
 );
 CREATE INDEX IF NOT EXISTS idx_trades_entryDate ON trades(entryDate);
 CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
-CREATE INDEX IF NOT EXISTS idx_trades_journalId ON trades(journalId);
+-- NOTE: idx_trades_journalId is created in migrate(), NOT here. On legacy
+-- databases the trades table predates the journalId column, and creating an
+-- index on a missing column crashes startup with "no such column: journalId".
 CREATE TABLE IF NOT EXISTS journals (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -72,8 +74,9 @@ export class JournalDB {
     const cols = this.db.prepare("PRAGMA table_info(trades)").all() as { name: string }[];
     if (!cols.some((c) => c.name === "journalId")) {
       this.db.exec("ALTER TABLE trades ADD COLUMN journalId TEXT");
-      this.db.exec("CREATE INDEX IF NOT EXISTS idx_trades_journalId ON trades(journalId)");
     }
+    // Safe here because the column is guaranteed to exist by the check above.
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_trades_journalId ON trades(journalId)");
     // guarantee at least one journal exists
     let row = this.db.prepare("SELECT id FROM journals ORDER BY createdAt ASC, rowid ASC LIMIT 1").get() as { id: string } | undefined;
     this.defaultJournalId = row?.id ?? this.createJournal(DEFAULT_JOURNAL_NAME).id;

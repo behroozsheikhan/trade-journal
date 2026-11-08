@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import Database from "better-sqlite3";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -234,5 +235,46 @@ describe("JournalDB journals (multi-workspace)", () => {
     expect(db2.listTrades({ journalId: j2.id })).toHaveLength(1);
     db2.close();
     fs.rmSync(dir2, { recursive: true, force: true });
+  });
+});
+
+describe("JournalDB legacy database upgrade (v1.0.x database -> v1.1.x)", () => {
+  it("opens a pre-multi-journal database without 'no such column: journalId'", () => {
+    // Reproduce the exact v1.0.x on-disk schema: trades WITHOUT journalId.
+    const legacyPath = path.join(dir, "legacy.db");
+    const raw = new Database(legacyPath);
+    raw.exec(`CREATE TABLE trades (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      status TEXT NOT NULL,
+      entryDate TEXT NOT NULL,
+      symbol TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      rMultiple REAL,
+      pnlUsd REAL
+    );
+    CREATE INDEX idx_trades_entryDate ON trades(entryDate);
+    CREATE INDEX idx_trades_status ON trades(status);
+    CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE images (id TEXT PRIMARY KEY, tradeId TEXT NOT NULL, name TEXT NOT NULL, filename TEXT NOT NULL, createdAt TEXT NOT NULL);`);
+    raw
+      .prepare("INSERT INTO trades (id, data, status, entryDate, symbol, direction, rMultiple, pnlUsd) VALUES (?,?,?,?,?,?,?,?)")
+      .run("legacy-1", "{}", "closed", "2026-01-01", "BTC/USDT", "long", 2, 100);
+    raw.close();
+
+    // This used to throw SqliteError: no such column: journalId (startup crash).
+    const upgraded = new JournalDB(legacyPath);
+    const t = upgraded.getTrade("legacy-1");
+    expect(t).not.toBeNull();
+    // legacy row is backfilled into the auto-created default journal
+    expect(t!.journalId).toBe(upgraded.listJournals()[0].id);
+    // and the journalId index exists afterwards
+    const index = (
+      upgraded as unknown as { db: InstanceType<typeof Database> }
+    ).db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_trades_journalId'")
+      .get();
+    expect(index).toBeTruthy();
+    upgraded.close();
   });
 });
