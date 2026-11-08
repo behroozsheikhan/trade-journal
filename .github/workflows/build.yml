@@ -82,15 +82,12 @@ jobs:
           $base = "https://github.com/electron/electron/releases/download/v$env:ELECTRON_VERSION"
           curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o "$cache\electron-v$env:ELECTRON_VERSION-win32-x64.zip" "$base/electron-v$env:ELECTRON_VERSION-win32-x64.zip"
           curl.exe -L --retry 6 --retry-all-errors --retry-delay 15 -o "$cache\SHASUMS256.txt" "$base/SHASUMS256.txt"
-      - name: Node prefix for offline native builds
-        shell: bash
-        run: |
-          prefix="$(dirname "$(dirname "$(readlink -f "$(which node)")")")"
-          winprefix="$(cygpath -w "$prefix" 2>/dev/null || echo "$prefix")"
-          echo "npm_config_nodedir=$winprefix" >> "$GITHUB_ENV"
       - name: Install dependencies
         shell: pwsh
         run: |
+          # nodedir only for THIS step (better-sqlite3 install script fallback);
+          # must NOT leak into electron-builder's @electron/rebuild node-gyp calls.
+          $env:npm_config_nodedir = Split-Path -Parent (Split-Path -Parent (Get-Command node).Source)
           $ok = $false
           for ($i = 1; $i -le 3; $i++) {
             npm ci --no-audit --no-fund
@@ -190,9 +187,9 @@ jobs:
           base="https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}"
           curl -L --retry 6 --retry-all-errors --retry-delay 15 -o ~/.cache/electron/electron-v${ELECTRON_VERSION}-linux-x64.zip "$base/electron-v${ELECTRON_VERSION}-linux-x64.zip"
           curl -L --retry 6 --retry-all-errors --retry-delay 15 -o ~/.cache/electron/SHASUMS256.txt "$base/SHASUMS256.txt"
-      - name: Node prefix for offline native builds
-        run: echo "npm_config_nodedir=$(dirname "$(dirname "$(readlink -f "$(which node)")")")" >> "$GITHUB_ENV"
-      - run: npm ci --no-audit --no-fund || npm ci --no-audit --no-fund
+      - run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(readlink -f "$(which node)")")")"
+          npm ci --no-audit --no-fund || npm ci --no-audit --no-fund
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - name: Diagnose install failure
