@@ -125,7 +125,10 @@ jobs:
         shell: pwsh
         run: |
           if (Test-Path build.log) {
-            Get-Content build.log -Tail 80 | ForEach-Object { Write-Host "::error::$_" }
+            $lines = Get-Content build.log
+            $idx = ($lines | Select-String -Pattern "⨯" | Select-Object -Last 1).LineNumber
+            if ($idx) { $lines[([Math]::Max(0, $idx - 4))..([Math]::Min($lines.Count - 1, $idx + 24))] | ForEach-Object { Write-Host "::error::$_" } }
+            else { $lines | Select-Object -Last 30 | ForEach-Object { Write-Host "::error::$_" } }
           }
       - uses: actions/upload-artifact@v4
         if: always()
@@ -212,7 +215,7 @@ jobs:
       - name: Diagnose builder failure
         if: failure()
         run: |
-          tail -80 builder.log | sed 's/^/::error::/'
+          { grep -aB3 -A25 "⨯" builder.log | head -60; echo "----- tail -----"; tail -25 builder.log; } | sed 's/^/::error::/' | head -70
       - uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
